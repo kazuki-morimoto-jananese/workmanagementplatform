@@ -1,0 +1,85 @@
+export type Status = "todo" | "progress" | "review" | "done";
+export type Priority = "low" | "medium" | "high";
+export type Member = {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "member";
+  active: boolean;
+  mustChangePassword: boolean;
+};
+export type Field = {
+  id: string;
+  name: string;
+  type: "text" | "number" | "select";
+  options: string[];
+};
+export type Rule = {
+  id: string;
+  status: Status;
+  assigneeId: string;
+  dueDays: number | null;
+  enabled: boolean;
+};
+export type Project = {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  icon: string;
+  status: "ontrack" | "atrisk" | "complete";
+  dueDate: string;
+  fields: Field[];
+  rules: Rule[];
+  ownerId: string;
+};
+export type Task = {
+  accountId?: string;
+  minuteId?: string;
+  minuteActionIndex?: number | null;
+  id: string;
+  title: string;
+  description: string;
+  projectIds: string[];
+  status: Status;
+  priority: Priority;
+  assigneeId: string;
+  startDate: string;
+  dueDate: string;
+  tags: string[];
+  dependencies: string[];
+  custom: Record<string, string | number>;
+  links: { name: string; url: string }[];
+  comments: { id: string; userId: string; text: string; createdAt: string }[];
+  approval: null | {
+    status: "pending" | "approved" | "rejected";
+    reviewerId: string;
+    requestedBy: string;
+  };
+  version: number;
+  updatedAt: string;
+};
+export type Activity = {
+  id: string;
+  userId: string;
+  text: string;
+  taskId: string;
+  createdAt: string;
+};
+export type Notification = {
+  id: string;
+  userId: string;
+  text: string;
+  taskId: string;
+  read: boolean;
+  createdAt: string;
+};
+export type Data = {
+  user: Member;
+  members: Member[];
+  projects: Project[];
+  tasks: Task[];
+  activity: Activity[];
+  notifications: Notification[];
+  workspace: { name: string };
+};

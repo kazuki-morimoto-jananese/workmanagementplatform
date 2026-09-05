@@ -1,0 +1,10 @@
+# Optional overlay: docker compose -f compose.yaml -f compose.google.yaml up -d --build
+services:
+  app:
+    environment:
+      GOOGLE_SERVICE_ACCOUNT_FILE: /run/worknest-secrets/google-service-account.json
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_AUTO_SUMMARY: ${GEMINI_AUTO_SUMMARY:-false}
+    volumes:
+      - ./.secrets:/run/worknest-secrets:ro
