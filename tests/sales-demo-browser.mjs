@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { expect } from "@playwright/test";
 export async function runSalesDemoBrowserChecks(page) {
   await page
     .getByRole("button", { name: "営業・数字管理", exact: true })
@@ -30,10 +31,17 @@ export async function runSalesDemoBrowserChecks(page) {
       await page.getByLabel("週次会議の週", { exact: true }).inputValue(),
       period.reportWeek,
     );
-    assert.equal(await page.locator(".sales-account-button").count(), 6);
+    await expect(page.locator(".sales-account-button")).toHaveCount(6);
     await page
       .getByRole("button", { name: "営業サマリー", exact: true })
       .click();
+    await expect(page.locator(".sales-kpis")).toContainText(
+      period.offset < 0
+        ? "29,700,000"
+        : period.offset > 0
+          ? "37,950,000"
+          : "33,000,000",
+    );
     const kpis = await page.locator(".sales-kpis").textContent();
     assert.ok(
       kpis.includes(
@@ -53,9 +61,9 @@ export async function runSalesDemoBrowserChecks(page) {
       fullPage: true,
     });
     await page.getByRole("button", { name: "商談", exact: true }).click();
-    assert.equal(await page.locator(".sales-deal").count(), 6);
+    await expect(page.locator(".sales-deal")).toHaveCount(6);
     await page.getByRole("button", { name: "議事録", exact: true }).click();
-    assert.equal(await page.locator(".sales-minute-card").count(), 6);
+    await expect(page.locator(".sales-minute-card")).toHaveCount(6);
     assert.ok(
       (await page.locator(".sales-minute-card").first().textContent()).includes(
         period.month,
@@ -68,7 +76,8 @@ export async function runSalesDemoBrowserChecks(page) {
   await page.getByLabel("表示データ", { exact: true }).selectOption("real");
   await page.getByLabel("対象月", { exact: true }).fill(periods[1].month);
   await page.locator(".sales-loading").waitFor({ state: "hidden" });
-  assert.equal(await page.locator(".sales-account-button").count(), 1);
+  await expect(page.locator(".sales-account-button")).toHaveCount(1);
+  await expect(page.locator(".sales-kpis")).toContainText("600,000");
   assert.ok(
     (await page.locator(".sales-kpis").textContent()).includes("600,000"),
   );
