@@ -450,6 +450,33 @@ test("sales workflows preserve manual forecasts, history, raw metrics and task l
         const state = await bootstrap();
         assert.equal(state.connections.source.enabled, false);
         assert.equal("GEMINI_API_KEY" in state.connections, false);
+        assert.equal(
+          (await call("/sales/demo", "POST", {}, empCookie)).status,
+          403,
+        );
+        const seeded = await call("/sales/demo", "POST", {});
+        assert.equal(seeded.status, 201);
+        assert.equal(seeded.body.created.salesMasters, 18);
+        const realExport = await call(
+          `/sales/export?month=${month}&weekOf=${week}`,
+        );
+        assert.doesNotMatch(realExport.body.csv, /demo-sfa/);
+        assert.match(realExport.body.csv, /acct-01/);
+        const demoExport = await call(
+          `/sales/export?month=${month}&weekOf=${week}&scope=demo`,
+        );
+        assert.match(demoExport.body.csv, /demo-sfa/);
+        assert.doesNotMatch(demoExport.body.csv, /acct-01/);
+        const demo = (await bootstrap()).accounts.find((a) => a.isDemo);
+        const changed = await call(`/sales/accounts/${demo.id}`, "PATCH", {
+          version: demo.version,
+          name: "デモ：名前を編集",
+        });
+        assert.equal(changed.body.isDemo, true);
+        assert.equal(
+          (await call("/sales/demo", "POST", {})).body.totalCreated,
+          0,
+        );
       },
     );
   } finally {

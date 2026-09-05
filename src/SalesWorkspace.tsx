@@ -437,6 +437,7 @@ export default function SalesWorkspace({
     [minuteSearch, setMinuteSearch] = useState(""),
     [owner, setOwner] = useState("all"),
     [accountScope, setAccountScope] = useState("active"),
+    [dataScope, setDataScope] = useState("auto"),
     [onlyMissing, setOnlyMissing] = useState(false),
     [dialog, setDialog] = useState<Dialog | null>(null);
   const [importText, setImportText] = useState(""),
@@ -446,19 +447,45 @@ export default function SalesWorkspace({
     [busy, setBusy] = useState(false),
     [seedReviews, setSeedReviews] = useState(false);
   const admin = data.user.role === "admin";
+  const activePeriod = useRef("");
+  activePeriod.current = `${month}/${week}`;
+  const hasDemo = sales.accounts.some((a) => a.isDemo);
+  const effectiveScope =
+    dataScope === "auto"
+      ? sales.accounts.some((a) => !a.isDemo)
+        ? "real"
+        : hasDemo
+          ? "demo"
+          : "real"
+      : dataScope;
+  const scopedAccounts = sales.accounts.filter((a) =>
+    effectiveScope === "demo" ? a.isDemo : !a.isDemo,
+  );
+  const scopedIds = new Set(scopedAccounts.map((a) => a.id));
+  const visibleHistory = sales.history.filter((h) =>
+    scopedIds.has(h.accountId),
+  );
+  const changeMonth = (value: string) => {
+    setMonth(value);
+    const period = sales.demoPeriods?.find((p) => p.month === value);
+    if (effectiveScope === "demo" && period) setWeek(period.reportWeek);
+  };
   const load = async () => {
+    const requestedPeriod = `${month}/${week}`;
     try {
       const result = await api<SalesData>(
         `/sales/bootstrap?month=${month}&weekOf=${week}`,
       );
+      if (activePeriod.current !== requestedPeriod) return result;
       setSales(result);
       setError("");
       return result;
     } catch (e) {
-      setError((e as Error).message);
+      if (activePeriod.current === requestedPeriod)
+        setError((e as Error).message);
       throw e;
     } finally {
-      setLoading(false);
+      if (activePeriod.current === requestedPeriod) setLoading(false);
     }
   };
   useEffect(() => {
@@ -521,7 +548,7 @@ export default function SalesWorkspace({
     data.members.find((m) => m.id === a.ownerId)?.name ||
     a.ownerName ||
     "未割り当て";
-  const accounts = sales.accounts.filter(
+  const accounts = scopedAccounts.filter(
     (a) =>
       (accountScope === "all" ||
         !["解約", "停止", "休止", "利用停止"].includes(a.status)) &&
@@ -609,6 +636,12 @@ export default function SalesWorkspace({
     .normalize("NFKC")
     .toLocaleLowerCase();
   const visibleMinutes = sales.minutes
+    .filter(
+      (m) =>
+        scopedIds.has(m.accountId) &&
+        (effectiveScope !== "demo" ||
+          (m.targetMonth || m.meetingDate.slice(0, 7)) === month),
+    )
     .filter((minute) => {
       const account = sales.accounts.find(
         (item) => item.id === minute.accountId,
@@ -660,7 +693,7 @@ export default function SalesWorkspace({
   const exportData = () =>
     action(async () => {
       const result = await api<{ csv: string; filename: string }>(
-        `/sales/export?month=${month}&weekOf=${week}`,
+        `/sales/export?month=${month}&weekOf=${week}&scope=${effectiveScope}`,
       );
       const url = URL.createObjectURL(
         new Blob([result.csv], { type: "text/csv;charset=utf-8" }),
@@ -670,6 +703,27 @@ export default function SalesWorkspace({
       a.download = result.filename;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+  const addDemo = () =>
+    action(async () => {
+      const result = await perform(
+        "/demo",
+        {},
+        "3か月分の架空データを追加しました。実データは変更していません。",
+      );
+      await onTasksChanged();
+      setDataScope("demo");
+      setMonth(today().slice(0, 7));
+      setWeek(weekMonday());
+      setSearch("");
+      setMinuteSearch("");
+      setOnlyMissing(false);
+      setOwner("all");
+      setTab("summary");
+      if (result.totalCreated === 0)
+        setMessage(
+          "登録済みのデモを表示しています。編集した内容は保持しています。",
+        );
     });
   return (
     <div className="sales-workspace">
@@ -682,6 +736,15 @@ export default function SalesWorkspace({
           <p>数字の変化から、顧客への次の一手まで。</p>
         </div>
         <div className="sales-heading-actions">
+          {admin && (
+            <button
+              className="button"
+              disabled={busy || loading}
+              onClick={addDemo}
+            >
+              3か月デモを追加
+            </button>
+          )}
           <button className="button" onClick={exportData} disabled={busy}>
             <Download size={15} />
             週次CSV
@@ -697,13 +760,37 @@ export default function SalesWorkspace({
       </div>
       <div className="sales-period">
         <label>
+          表示データ
+          <select
+            aria-label="表示データ"
+            value={effectiveScope}
+            onChange={(e) => {
+              setDataScope(e.target.value);
+              setSearch("");
+              setMinuteSearch("");
+              setOnlyMissing(false);
+              setOwner("all");
+              if (e.target.value === "demo")
+                setWeek(
+                  sales.demoPeriods?.find((p) => p.month === month)
+                    ?.reportWeek || weekMonday(),
+                );
+            }}
+          >
+            <option value="real">実データ</option>
+            <option value="demo" disabled={!hasDemo}>
+              デモデータ
+            </option>
+          </select>
+        </label>
+        <label>
           対象月
           <input
             aria-label="対象月"
             type="month"
             value={month}
             onChange={(e) => {
-              if (e.target.value) setMonth(e.target.value);
+              if (e.target.value) changeMonth(e.target.value);
             }}
           />
         </label>
@@ -730,6 +817,39 @@ export default function SalesWorkspace({
           <RefreshCw size={17} />
         </button>
       </div>
+      {effectiveScope === "demo" && hasDemo && (
+        <section className="sales-demo-banner" aria-label="デモデータの案内">
+          <div>
+            <strong>架空の営業データを表示中</strong>
+            <p>
+              6アカウントの目標・ヨミ・競合指標を確認できます。前月は締め結果、当月は進捗、翌月は計画です。
+            </p>
+          </div>
+          <div
+            className="sales-demo-months"
+            role="group"
+            aria-label="デモの対象月"
+          >
+            {sales.demoPeriods?.map((p) => (
+              <button
+                key={p.month}
+                className={`button ${month === p.month ? "primary" : ""}`}
+                aria-pressed={month === p.month}
+                onClick={() => {
+                  setMonth(p.month);
+                  setWeek(p.reportWeek);
+                }}
+              >
+                {p.offset < 0 ? "前月" : p.offset > 0 ? "翌月" : "当月"} ·{" "}
+                {p.month}
+              </button>
+            ))}
+          </div>
+          <small>
+            当月は1件の当週未更新、CPA超過、目標未達を含みます。翌月の消化実績は未発生のため空欄です。デモのCSVは実データと分けて出力します。
+          </small>
+        </section>
+      )}
       <nav className="sales-tabs" aria-label="営業管理ビュー">
         {[
           { id: "summary", label: "営業サマリー", icon: BarChart3 },
@@ -797,25 +917,13 @@ export default function SalesWorkspace({
                   マスタを取り込む
                 </button>
                 {admin && (
-                  <button
-                    className="button"
-                    disabled={busy}
-                    onClick={() =>
-                      action(() =>
-                        perform(
-                          "/demo",
-                          {},
-                          "操作確認用の架空サンプルを追加しました",
-                        ),
-                      )
-                    }
-                  >
+                  <button className="button" disabled={busy} onClick={addDemo}>
                     サンプルで試す
                   </button>
                 )}
               </div>
               <small>
-                サンプルは架空データです。実データがある場合は追加されません。
+                3か月分の架空データです。実データと切り替えて表示できます。
               </small>
             </section>
           )}
@@ -1100,7 +1208,7 @@ export default function SalesWorkspace({
                 <span>根拠と変更者を保存</span>
               </div>
               <div className="panel sales-history">
-                {sales.history.slice(0, 12).map((h, i) => (
+                {visibleHistory.slice(0, 12).map((h, i) => (
                   <div key={i}>
                     <History size={14} />
                     <span>
@@ -1119,7 +1227,7 @@ export default function SalesWorkspace({
                     <strong>{yen(h.forecast)}</strong>
                   </div>
                 ))}
-                {!sales.history.length && (
+                {!visibleHistory.length && (
                   <p className="sales-muted">
                     ヨミを保存すると変更履歴が表示されます。
                   </p>
@@ -1895,7 +2003,7 @@ export default function SalesWorkspace({
             }}
           >
             <AccountSelect
-              accounts={sales.accounts}
+              accounts={scopedAccounts}
               selected={dialog.accountId}
             />
             <label>
@@ -1987,7 +2095,7 @@ export default function SalesWorkspace({
             }}
           >
             <AccountSelect
-              accounts={sales.accounts}
+              accounts={scopedAccounts}
               selected={dialog.accountId}
             />
             <label>
@@ -2011,7 +2119,7 @@ export default function SalesWorkspace({
       )}
       {dialog?.type === "minute" && (
         <MinuteForm
-          accounts={sales.accounts}
+          accounts={scopedAccounts}
           sales={sales}
           selected={dialog.accountId}
           close={close}

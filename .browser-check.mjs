@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createApp } from "./server/index.mjs";
 import { runSalesBrowserChecks } from "./tests/sales-browser.mjs";
 import { runTaskUxBrowserChecks } from "./tests/task-ux-browser.mjs";
+import { runSalesDemoBrowserChecks } from "./tests/sales-demo-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
 const { server, store } = createApp({
@@ -179,7 +180,10 @@ try {
   await modal.waitFor({ state: "hidden" });
   await page.getByText("hana@company.test", { exact: true }).waitFor();
   await runTaskUxBrowserChecks(page);
-  if (process.argv.includes("--sales")) await runSalesBrowserChecks(page);
+  if (process.argv.includes("--sales")) {
+    await runSalesBrowserChecks(page);
+    await runSalesDemoBrowserChecks(page);
+  }
   await page.getByRole("button", { name: "ホーム", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: ".browser-check-mobile.png", fullPage: true });

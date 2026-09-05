@@ -1,4 +1,5 @@
 import { id, now } from "./store.mjs";
+import { seedSalesDemo, demoPeriods } from "./sales-demo.mjs";
 import { buildPreview, emptyMedia, numeric, csvCell } from "./sales-import.mjs";
 import {
   integrationStatus,
@@ -125,6 +126,7 @@ export function createSalesService({ store, saveTask, activity }) {
       customerIssues: text(input.customerIssues),
       lastContactAt: dateValue(input.lastContactAt),
       importedAt: old?.importedAt || "",
+      ...(old?.isDemo ? { isDemo: true, demoSet: old.demoSet } : {}),
       version: (old?.version || 0) + 1,
     };
     store.put("salesAccounts", item);
@@ -479,6 +481,7 @@ export function createSalesService({ store, saveTask, activity }) {
       const source = store.get("salesSettings", "source");
       return reply(200, {
         accounts: store.all("salesAccounts"),
+        demoPeriods: demoPeriods(jstToday()),
         masters: store.all("salesMasters").filter((m) => m.month === month),
         reviews: store.all("salesReviews").filter((r) => r.month === month),
         opportunities: store.all("salesOpportunities"),
@@ -750,28 +753,36 @@ export function createSalesService({ store, saveTask, activity }) {
         ),
         week = dateValue(url.searchParams.get("weekOf") || monday(), true);
       const all = store.all("salesReviews");
-      const records = store.all("salesAccounts").map((a) => {
-        const r = all
-          .filter(
-            (r) =>
-              r.accountId === a.id && r.month === month && r.weekOf <= week,
-          )
-          .sort((a, b) => b.weekOf.localeCompare(a.weekOf))[0];
-        const m = store.get("salesMasters", key(a.id, month));
-        return [
-          a.id,
-          a.name,
-          a.ownerName,
-          month,
-          r?.weekOf,
-          m?.target,
-          m?.gTrend,
-          r?.forecast,
-          r?.aggressive,
-          r?.reason,
-          r?.nextAction,
-        ];
-      });
+      const scope = url.searchParams.get("scope") || "real";
+      check(
+        ["real", "demo"].includes(scope),
+        "データの種別を指定してください。",
+      );
+      const records = store
+        .all("salesAccounts")
+        .filter((a) => (scope === "demo" ? a.isDemo : !a.isDemo))
+        .map((a) => {
+          const r = all
+            .filter(
+              (r) =>
+                r.accountId === a.id && r.month === month && r.weekOf <= week,
+            )
+            .sort((a, b) => b.weekOf.localeCompare(a.weekOf))[0];
+          const m = store.get("salesMasters", key(a.id, month));
+          return [
+            a.id,
+            a.name,
+            a.ownerName,
+            month,
+            r?.weekOf,
+            m?.target,
+            m?.gTrend,
+            r?.forecast,
+            r?.aggressive,
+            r?.reason,
+            r?.nextAction,
+          ];
+        });
       const csv =
         "\uFEFF" +
         [
@@ -792,99 +803,14 @@ export function createSalesService({ store, saveTask, activity }) {
         ]
           .map((row) => row.map(csvCell).join(","))
           .join("\r\n");
-      return reply(200, { csv, filename: `worknest-sales-${month}.csv` });
+      return reply(200, {
+        csv,
+        filename: `worknest-sales-${scope}-${month}.csv`,
+      });
     }
     if (p === "/sales/demo" && method === "POST") {
       admin();
-      check(
-        store.all("salesAccounts").length === 0,
-        "営業データが空のときだけサンプルを追加できます。",
-        409,
-      );
-      const month = jstToday().slice(0, 7),
-        week = monday();
-      const sample =
-        "アカウントID\tアカウント名\t当月担当者\tカテゴリ\t今月目標\t前月実績\t前週Gトレ\t今週Gトレ\t今月ヨミ\tアグレッシブ数字\tヨミ根拠\t今週やること\tスタンバイ消化額\tスタンバイ実測CV\tスタンバイ実測CPA\tindeed消化額\tindeedCPA\t求人BOX消化額\t求人BOXCPA\t許容CPA\n" +
-        [
-          [
-            "demo-001",
-            "サンプル：みらいキャリア",
-            user.name,
-            "TOP30",
-            15000000,
-            12800000,
-            12600000,
-            13200000,
-            14000000,
-            15500000,
-            "看護師求人の配信改善が進行。増額の最終回答待ち。",
-            "CPA改善案を提出する",
-            6400000,
-            180,
-            35555,
-            20000000,
-            18000,
-            8000000,
-            24000,
-            30000,
-          ],
-          [
-            "demo-002",
-            "サンプル：東都ワークス",
-            user.name,
-            "育成",
-            7000000,
-            4800000,
-            5100000,
-            5400000,
-            5800000,
-            6800000,
-            "既存予算の継続合意済み。次週に増額を提案。",
-            "求人原稿の改善を提案する",
-            2800000,
-            220,
-            12727,
-            9000000,
-            16000,
-            5000000,
-            17000,
-            18000,
-          ],
-          [
-            "demo-003",
-            "サンプル：リーフ採用支援",
-            "未割り当て",
-            "重点",
-            4000000,
-            3200000,
-            3300000,
-            3000000,
-            "",
-            "",
-            "",
-            "顧客目標と予算を確認する",
-            "",
-            "",
-            "",
-            3000000,
-            12000,
-            2000000,
-            14000,
-            15000,
-          ],
-        ]
-          .map((r) => r.join("\t"))
-          .join("\n");
-      const result = commitImport(
-        {
-          text: sample,
-          month,
-          seedReviews: true,
-          sourceName: "操作確認用サンプル",
-        },
-        user,
-      );
-      return reply(201, result);
+      return reply(201, seedSalesDemo(store, user));
     }
     check(false, "営業管理のAPIが見つかりません。", 404);
   }

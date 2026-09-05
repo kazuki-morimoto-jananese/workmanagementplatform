@@ -13,6 +13,7 @@ export type SalesMedia = {
   acceptableCpa: number | null;
 };
 export type SalesAccount = {
+  isDemo?: boolean;
   id: string;
   name: string;
   status: string;
@@ -80,6 +81,7 @@ export type SalesOpportunity = {
   updatedAt: string;
 };
 export type SalesMinute = {
+  targetMonth?: string;
   id: string;
   accountId: string;
   opportunityId: string;
@@ -121,6 +123,12 @@ export type SalesSource = {
   nextRunAt?: string;
 };
 export type SalesData = {
+  demoPeriods?: {
+    month: string;
+    offset: number;
+    reportWeek: string;
+    end: string;
+  }[];
   accounts: SalesAccount[];
   masters: SalesMaster[];
   reviews: SalesReview[];

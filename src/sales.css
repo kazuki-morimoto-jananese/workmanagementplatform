@@ -1,3 +1,50 @@
+.sales-demo-banner {
+  padding: 20px 24px;
+  margin: 20px 0;
+  border: 1px solid #cbd9b8;
+  border-radius: 12px;
+  background: #eef4e5;
+}
+.sales-demo-banner strong {
+  font-size: 15px;
+  color: #304f3e;
+}
+.sales-demo-banner p {
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 6px 0 12px;
+}
+.sales-demo-banner small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.8;
+  margin-top: 12px;
+}
+.sales-demo-months {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sales-demo-months .button {
+  min-height: 38px;
+}
+.sales-period {
+  flex-wrap: wrap;
+}
+.sales-heading-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .sales-demo-banner {
+    padding: 16px;
+  }
+  .sales-demo-months .button {
+    flex: 1;
+    white-space: nowrap;
+    padding: 8px;
+    font-size: 11px;
+  }
+}
 .sales-source-raw {
   margin: 20px 28px;
   padding: 16px;

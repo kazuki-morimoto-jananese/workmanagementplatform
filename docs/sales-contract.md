@@ -23,7 +23,7 @@ API（以下すべて`/sales`接頭辞）:
 - POST `/connections`: `{spreadsheetId,range,name,month,rollingMonth,enabled,mapping}` admin only。接続1件を保存。month固定orrollingMonthはJST当月。enabledで日次06:00 JST同期。明示初回手動同期可。
 - POST `/connections/sync`: admin only 手動同期。read-only Sheets API、失敗時DBを変更せず記録。
 - GET `/export?month&weekOf`: CSV textダウンロード（サーバーheaders注入等避け安全に、またはJSONでcsv返す）。UI api helperがJSONを期待するため `{csv,filename}` を返す。
-- POST `/demo`: admin only、空の営業DBに明示操作で架空アカウント3件と実例数字を作成。
+- POST `/demo`: admin only、当月±1か月の架空データを6アカウントへ追加。既存の実データとデモの編集を保持。`{periods,created,totalCreated,accounts}` を返す。CSV `/export` は `scope=real|demo`、省略時real。
 
 ## 主なレコード
 
