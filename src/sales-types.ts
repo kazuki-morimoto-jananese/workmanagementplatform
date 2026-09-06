@@ -13,6 +13,7 @@ export type SalesMedia = {
   acceptableCpa: number | null;
 };
 export type SalesAccount = {
+  orgUnitId?: string;
   isDemo?: boolean;
   id: string;
   name: string;
@@ -81,6 +82,20 @@ export type SalesOpportunity = {
   updatedAt: string;
 };
 export type SalesMinute = {
+  reviewWeek?: string;
+  googleFileId?: string;
+  googleModifiedTime?: string;
+  lastSyncedAt?: string;
+  previousMinuteId?: string;
+  supersededBy?: string;
+  extraction?: null | {
+    status: string;
+    fields: { path: string; value: number; evidence: string }[];
+    error?: string;
+    appliedAt?: string;
+    applied?: string[];
+    skipped?: string[];
+  };
   targetMonth?: string;
   id: string;
   accountId: string;
@@ -154,6 +169,7 @@ export type SalesData = {
     warnings: string[];
   }[];
   connections: {
+    driveConfigured?: boolean;
     sheetsConfigured: boolean;
     geminiConfigured: boolean;
     geminiModel: string;

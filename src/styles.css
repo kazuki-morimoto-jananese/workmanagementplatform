@@ -3794,3 +3794,105 @@ small {
     scroll-behavior: auto !important;
   }
 }
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.organization-panel {
+  margin-bottom: 24px;
+}
+.organization-panel label {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+.organization-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e7ebe6;
+}
+.assignee-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  border: 1px solid #dfe5dd;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.assignee-choices legend {
+  font-size: 13px;
+  padding: 0 6px;
+}
+.assignee-choices .check-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+.assignee-choices input {
+  width: auto;
+}
+.audit-history {
+  margin: 20px 0;
+  min-width: 0;
+}
+.audit-history details {
+  border-bottom: 1px solid #e7ebe6;
+  padding: 12px 0;
+}
+.audit-history summary {
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.audit-history pre {
+  background: #f6f8f4;
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.audit-history .form-grid > div {
+  min-width: 0;
+}
+.minute-numbers {
+  border: 1px solid #dfe5dd;
+  border-radius: 12px;
+  padding: 18px;
+  margin: 20px 0;
+}
+.number-evidence {
+  padding: 12px 0;
+  border-bottom: 1px solid #e7ebe6;
+}
+.number-evidence small {
+  display: block;
+  color: #6c786c;
+  margin-top: 6px;
+}
+.number-evidence blockquote {
+  border-left: 3px solid #9cae8f;
+  margin: 10px 0 0;
+  padding: 4px 14px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.project-nav {
+  max-height: 35vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.task-assignees {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}

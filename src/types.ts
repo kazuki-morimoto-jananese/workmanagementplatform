@@ -1,6 +1,7 @@
 export type Status = "todo" | "progress" | "review" | "done";
 export type Priority = "low" | "medium" | "high";
 export type Member = {
+  orgUnitId?: string;
   id: string;
   name: string;
   email: string;
@@ -22,6 +23,8 @@ export type Rule = {
   enabled: boolean;
 };
 export type Project = {
+  orgUnitId?: string;
+  memberIds?: string[];
   id: string;
   name: string;
   description: string;
@@ -34,6 +37,7 @@ export type Project = {
   ownerId: string;
 };
 export type Task = {
+  assigneeIds?: string[];
   accountId?: string;
   minuteId?: string;
   minuteActionIndex?: number | null;
@@ -75,6 +79,8 @@ export type Notification = {
   createdAt: string;
 };
 export type Data = {
+  orgUnits?: OrgUnit[];
+  salesAccounts?: { id: string; name: string; isDemo: boolean }[];
   user: Member;
   members: Member[];
   projects: Project[];
@@ -83,3 +89,20 @@ export type Data = {
   notifications: Notification[];
   workspace: { name: string };
 };
+export type OrgUnit = {
+  id: string;
+  name: string;
+  parentId: string;
+  level: string;
+  version: number;
+};
+export const taskAssignees = (task: Pick<Task, "assigneeId" | "assigneeIds">) =>
+  task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []);
+export function organizationName(units: OrgUnit[], id?: string): string {
+  const unit = units.find((u) => u.id === id);
+  return unit
+    ? [organizationName(units, unit.parentId), unit.name]
+        .filter(Boolean)
+        .join(" / ")
+    : "";
+}

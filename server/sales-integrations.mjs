@@ -4,6 +4,9 @@ import { createSign } from "node:crypto";
 const problem = (message) => Object.assign(new Error(message), { status: 503 });
 export function integrationStatus() {
   return {
+    driveConfigured:
+      !!process.env.GOOGLE_SERVICE_ACCOUNT_FILE &&
+      existsSync(process.env.GOOGLE_SERVICE_ACCOUNT_FILE),
     sheetsConfigured:
       !!process.env.GOOGLE_SERVICE_ACCOUNT_FILE &&
       existsSync(process.env.GOOGLE_SERVICE_ACCOUNT_FILE),
@@ -13,7 +16,13 @@ export function integrationStatus() {
     autoSummaryEnabled: process.env.GEMINI_AUTO_SUMMARY === "true",
   };
 }
-async function jsonRequest(url, init, fetchImpl, maxBytes = 4 * 1024 * 1024) {
+export async function jsonRequest(
+  url,
+  init,
+  fetchImpl,
+  maxBytes = 4 * 1024 * 1024,
+  plainText = false,
+) {
   let response;
   try {
     response = await fetchImpl(url, {
@@ -49,6 +58,7 @@ async function jsonRequest(url, init, fetchImpl, maxBytes = 4 * 1024 * 1024) {
     }
     text += decoder.decode();
   } else text = await response.text();
+  if (plainText) return text;
   try {
     return JSON.parse(text);
   } catch {
@@ -64,6 +74,21 @@ export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
     config.range.length > 250
   )
     throw problem("スプレッドシートIDと取得範囲を確認してください。");
+  const token = await googleToken(
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    fetchImpl,
+  );
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(config.spreadsheetId)}/values/${encodeURIComponent(config.range)}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;
+  const result = await jsonRequest(
+    url,
+    { headers: { Authorization: `Bearer ${token}` } },
+    fetchImpl,
+  );
+  if (!Array.isArray(result.values) || !result.values.length)
+    throw problem("取得範囲が空です。見出し行を含む範囲を指定してください。");
+  return { values: result.values };
+}
+export async function googleToken(scope, fetchImpl = fetch) {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_FILE)
     throw problem("GOOGLE_SERVICE_ACCOUNT_FILEが未設定です。");
   let credentials;
@@ -83,6 +108,7 @@ export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
   const stamp = Math.floor(Date.now() / 1000);
   let token =
     tokenCache?.key === credentials.private_key &&
+    tokenCache?.scope === scope &&
     tokenCache?.email === credentials.client_email &&
     tokenCache.expires > stamp + 60
       ? tokenCache.value
@@ -95,7 +121,7 @@ export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
       "." +
       encode({
         iss: credentials.client_email,
-        scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+        scope,
         aud: "https://oauth2.googleapis.com/token",
         iat: stamp,
         exp: stamp + 3600,
@@ -125,21 +151,14 @@ export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
       throw problem("Googleのアクセストークンを取得できませんでした。");
     token = result.access_token;
     tokenCache = {
+      scope,
       key: credentials.private_key,
       email: credentials.client_email,
       value: token,
       expires: stamp + Math.min(Number(result.expires_in) || 3600, 3600),
     };
   }
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(config.spreadsheetId)}/values/${encodeURIComponent(config.range)}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;
-  const result = await jsonRequest(
-    url,
-    { headers: { Authorization: `Bearer ${token}` } },
-    fetchImpl,
-  );
-  if (!Array.isArray(result.values) || !result.values.length)
-    throw problem("取得範囲が空です。見出し行を含む範囲を指定してください。");
-  return { values: result.values };
+  return token;
 }
 function localSummary(text) {
   const lines = text

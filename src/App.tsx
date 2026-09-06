@@ -60,6 +60,13 @@ import type {
   Task,
 } from "./types";
 import SalesWorkspace from "./SalesWorkspace";
+import { taskAssignees, organizationName, type OrgUnit } from "./types";
+import {
+  OrganizationPanel,
+  OrganizationSelect,
+  OperationsPanel,
+  AuditHistory,
+} from "./WorkspaceAdmin";
 
 const STATUS: Record<Status, { label: string; color: string }> = {
   todo: { label: "未着手", color: "neutral" },
@@ -482,6 +489,7 @@ export default function App() {
   const [view, setView] = useState("list");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [projectScope, setProjectScope] = useState("all");
   const [priority, setPriority] = useState("all");
   const [dueFilter, setDueFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -620,7 +628,15 @@ export default function App() {
   const activeMembers = data.members.filter((m) => m.active);
   const member = (id: string) => data.members.find((m) => m.id === id);
   const project = data.projects.find((p) => route === `project:${p.id}`);
-  const mine = data.tasks.filter((t) => t.assigneeId === data.user.id);
+  const mine = data.tasks.filter((t) =>
+    taskAssignees(t).includes(data.user.id),
+  );
+  const myProjects = data.projects.filter(
+    (p) =>
+      p.ownerId === data.user.id ||
+      p.memberIds?.includes(data.user.id) ||
+      mine.some((t) => t.projectIds.includes(p.id)),
+  );
   const unread = data.notifications.filter((n) => !n.read).length;
   const baseTasks = project
     ? data.tasks.filter((t) => t.projectIds.includes(project.id))
@@ -645,7 +661,8 @@ export default function App() {
             t.title,
             t.description,
             ...t.tags,
-            member(t.assigneeId)?.name || "",
+            ...taskAssignees(t).map((uid) => member(uid)?.name || ""),
+            data.salesAccounts?.find((a) => a.id === t.accountId)?.name || "",
             ...data.projects
               .filter((p) => t.projectIds.includes(p.id))
               .map((p) => p.name),
@@ -654,10 +671,10 @@ export default function App() {
       ) &&
       (filter === "all" ||
         (filter === "me"
-          ? t.assigneeId === data.user.id
+          ? taskAssignees(t).includes(data.user.id)
           : filter === "unassigned"
-            ? !t.assigneeId
-            : t.assigneeId === filter)) &&
+            ? !taskAssignees(t).length
+            : taskAssignees(t).includes(filter))) &&
       (priority === "all" || t.priority === priority),
   );
   const visibleTasks = matchedTasks
@@ -817,7 +834,7 @@ export default function App() {
             {done} / {tasks.length} タスク
           </span>
           <span className="avatar-stack">
-            {[...new Set(tasks.map((t) => t.assigneeId).filter(Boolean))]
+            {[...new Set(tasks.flatMap(taskAssignees))]
               .slice(0, 3)
               .map((uid) => (
                 <Avatar key={uid} member={member(uid)} />
@@ -927,7 +944,10 @@ export default function App() {
           </button>
         </div>
         <nav className="project-nav">
-          {data.projects.slice(0, 7).map((p) => (
+          {[
+            ...myProjects,
+            ...data.projects.filter((p) => !myProjects.includes(p)),
+          ].map((p) => (
             <button
               key={p.id}
               className={project?.id === p.id ? "active" : ""}
@@ -1428,8 +1448,28 @@ export default function App() {
                   新規プロジェクト
                 </button>
               </div>
+              <div className="admin-actions">
+                <label>
+                  表示するプロジェクト
+                  <select
+                    aria-label="表示するプロジェクト"
+                    value={projectScope}
+                    onChange={(e) => setProjectScope(e.target.value)}
+                  >
+                    <option value="all">ワークスペース全体</option>
+                    <option value="mine">
+                      自分が参加・担当するプロジェクト
+                    </option>
+                  </select>
+                </label>
+                <p className="sales-muted">
+                  部署に関係なく、参加者または担当タスクがあるプロジェクトを表示します。
+                </p>
+              </div>
               <div className="project-grid all-projects">
-                {data.projects.map(projectCard)}
+                {(projectScope === "mine" ? myProjects : data.projects).map(
+                  projectCard,
+                )}
                 <button
                   className="new-project-card"
                   onClick={() => setNewProject(true)}
@@ -1678,7 +1718,19 @@ export default function App() {
                                   )}
                                 </div>
                                 <div>
-                                  <Avatar member={member(t.assigneeId)} />
+                                  <span
+                                    className="task-assignees"
+                                    title={taskAssignees(t)
+                                      .map((uid) => member(uid)?.name)
+                                      .join("?")}
+                                  >
+                                    <Avatar member={member(t.assigneeId)} />
+                                    {taskAssignees(t).length > 1 && (
+                                      <small>
+                                        +{taskAssignees(t).length - 1}
+                                      </small>
+                                    )}
+                                  </span>
                                   <span className="assignee-name">
                                     {member(t.assigneeId)?.name.split(
                                       /[ 　]/,
@@ -1857,7 +1909,19 @@ export default function App() {
                                         {t.comments.length}
                                       </span>
                                     )}
-                                    <Avatar member={member(t.assigneeId)} />
+                                    <span
+                                      className="task-assignees"
+                                      title={taskAssignees(t)
+                                        .map((uid) => member(uid)?.name)
+                                        .join("?")}
+                                    >
+                                      <Avatar member={member(t.assigneeId)} />
+                                      {taskAssignees(t).length > 1 && (
+                                        <small>
+                                          +{taskAssignees(t).length - 1}
+                                        </small>
+                                      )}
+                                    </span>
                                   </span>
                                 </div>
                                 <select
@@ -2043,6 +2107,7 @@ export default function App() {
                   </button>
                 )}
               </div>
+              <OrganizationPanel data={data} request={api} refresh={refresh} />
               <div className="panel members-panel">
                 <div className="members-head">
                   <span>メンバー</span>
@@ -2060,6 +2125,10 @@ export default function App() {
                           {m.id === data.user.id && <small>あなた</small>}
                         </strong>
                         <small>{m.email}</small>
+                        <small>
+                          {organizationName(data.orgUnits || [], m.orgUnitId) ||
+                            "所属未設定"}
+                        </small>
                       </span>
                     </div>
                     <span>
@@ -2112,6 +2181,9 @@ export default function App() {
                   <p>いつものツールとつながる、あなたのワークスペース。</p>
                 </div>
               </div>
+              {data.user.role === "admin" && (
+                <OperationsPanel request={api} members={data.members} />
+              )}
               <section className="panel settings-section">
                 <h2>アカウント</h2>
                 <div className="setting-row">
@@ -2178,7 +2250,7 @@ export default function App() {
                 <div className="setting-row">
                   <div>
                     <strong>{data.workspace.name}</strong>
-                    <p>Worknest v2.2 · タスクと営業数字の共通ワークスペース</p>
+                    <p>Worknest v2.3 · タスクと営業数字の共通ワークスペース</p>
                   </div>
                   <span className="pill neutral">
                     <ShieldCheck size={13} />
@@ -2237,6 +2309,7 @@ export default function App() {
           key={editProject?.id || "new"}
           project={editProject}
           members={activeMembers}
+          orgUnits={data.orgUnits || []}
           onClose={() => {
             setNewProject(false);
             setEditProject(null);
@@ -2546,6 +2619,8 @@ function TaskDialog({
     | "status"
     | "priority"
     | "assigneeId"
+    | "assigneeIds"
+    | "accountId"
     | "startDate"
     | "dueDate"
     | "projectIds"
@@ -2559,6 +2634,8 @@ function TaskDialog({
     status: "todo",
     priority: "medium",
     assigneeId: "",
+    assigneeIds: [],
+    accountId: "",
     startDate: today(),
     dueDate: "",
     projectIds: defaultProjectId ? [defaultProjectId] : [],
@@ -2654,6 +2731,46 @@ function TaskDialog({
             onChange={(e) => update("title", e.target.value)}
           />
         </label>
+        <label>
+          対象の営業アカウント
+          <select
+            aria-label="対象の営業アカウント"
+            value={draft.accountId || ""}
+            disabled={!!task?.minuteId}
+            onChange={(e) => update("accountId", e.target.value)}
+          >
+            <option value="">紐づけなし</option>
+            {data.salesAccounts?.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}（{a.id}）
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset className="assignee-choices">
+          <legend>担当者を複数選択</legend>
+          {data.members
+            .filter((m) => m.active || taskAssignees(draft).includes(m.id))
+            .map((m) => (
+              <label className="check-label" key={m.id}>
+                <input
+                  type="checkbox"
+                  checked={taskAssignees(draft).includes(m.id)}
+                  onChange={(e) => {
+                    const ids = e.target.checked
+                      ? [...taskAssignees(draft), m.id]
+                      : taskAssignees(draft).filter((uid) => uid !== m.id);
+                    setDraft((d) => ({
+                      ...d,
+                      assigneeIds: ids,
+                      assigneeId: ids[0] || "",
+                    }));
+                  }}
+                />
+                {m.name}
+              </label>
+            ))}
+        </fieldset>
         <div className="form-grid">
           <label>
             ステータス
@@ -2674,7 +2791,21 @@ function TaskDialog({
             <select
               aria-label="担当者"
               value={draft.assigneeId}
-              onChange={(e) => update("assigneeId", e.target.value)}
+              onChange={(e) => {
+                const uid = e.target.value;
+                setDraft((d) => ({
+                  ...d,
+                  assigneeId: uid,
+                  assigneeIds: uid
+                    ? [
+                        uid,
+                        ...taskAssignees(d).filter(
+                          (x) => x !== uid && x !== d.assigneeId,
+                        ),
+                      ]
+                    : [],
+                }));
+              }}
             >
               <option value="">未割り当て</option>
               {data.members
@@ -3078,6 +3209,12 @@ function TaskDialog({
               </button>
             </form>
           </section>
+          <AuditHistory
+            request={api}
+            kind="tasks"
+            recordId={task.id}
+            members={data.members}
+          />
           <div className="task-bottom-actions">
             {task.dueDate && (
               <>
@@ -3135,17 +3272,22 @@ function TaskDialog({
 function ProjectDialog({
   project,
   members,
+  orgUnits,
   onClose,
   onSave,
 }: {
   project: Project | null;
   members: Member[];
+  orgUnits: OrgUnit[];
   onClose: () => void;
   onSave: (body: unknown) => Promise<void>;
 }) {
   const [fields, setFields] = useState<Field[]>(project?.fields || []);
   const [rules, setRules] = useState<Rule[]>(project?.rules || []);
   const [color, setColor] = useState(project?.color || "sage");
+  const [memberIds, setMemberIds] = useState<string[]>(
+    project?.memberIds || [],
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -3154,7 +3296,7 @@ function ProjectDialog({
     setBusy(true);
     setError("");
     try {
-      await onSave({ ...body, color, fields, rules });
+      await onSave({ ...body, color, fields, rules, memberIds });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -3206,6 +3348,33 @@ function ProjectDialog({
             </select>
           </label>
         </div>
+        <label>
+          担当組織
+          <OrganizationSelect
+            units={orgUnits}
+            name="orgUnitId"
+            defaultValue={project?.orgUnitId || ""}
+          />
+        </label>
+        <fieldset className="assignee-choices">
+          <legend>参加メンバー（部署をまたいで選択可能）</legend>
+          {members.map((m) => (
+            <label className="check-label" key={m.id}>
+              <input
+                type="checkbox"
+                checked={memberIds.includes(m.id)}
+                onChange={(e) =>
+                  setMemberIds(
+                    e.target.checked
+                      ? [...memberIds, m.id]
+                      : memberIds.filter((uid) => uid !== m.id),
+                  )
+                }
+              />
+              {m.name}
+            </label>
+          ))}
+        </fieldset>
         <label>プロジェクトカラー</label>
         <div className="color-picker">
           {["sage", "peach", "lavender", "blue", "rose"].map((c) => (

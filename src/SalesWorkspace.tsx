@@ -50,6 +50,8 @@ import type {
   ImportPreview,
 } from "./sales-types";
 import "./sales.css";
+import { OrganizationSelect, AuditHistory } from "./WorkspaceAdmin";
+import { MinuteNumbers } from "./MinuteNumbers";
 
 type Props = {
   data: Data;
@@ -1781,7 +1783,7 @@ export default function SalesWorkspace({
                 <div className="section-heading">
                   <h2>
                     <Sparkles size={19} />
-                    Geminiによる議事録要約
+                    Googleドキュメント・Gemini連携
                   </h2>
                   <span
                     className={`pill ${sales.connections.geminiConfigured ? "sage" : "neutral"}`}
@@ -1794,6 +1796,27 @@ export default function SalesWorkspace({
                   <code>GEMINI_MODEL</code> を設定すると利用できます。
                   <code>GEMINI_AUTO_SUMMARY=true</code>{" "}
                   で保存後の自動要約を有効にできます。
+                </p>
+                <p>
+                  Google Drive
+                  APIを有効化し、議事録をサービスアカウントのメールアドレスへ閲覧共有してください。Sheetsと同じ{" "}
+                  <code>GOOGLE_SERVICE_ACCOUNT_FILE</code>{" "}
+                  を使用します。議事録登録でGoogleドキュメントURLを指定できます。
+                </p>
+                <p>
+                  数値抽出は標準で1日20回までです。
+                  <code>GEMINI_DAILY_EXTRACTIONS</code>{" "}
+                  で上限を設定できます。無料枠のあるモデルとGoogle側の割当量を確認してください。無料枠の残量取得や課金停止はGoogle側で管理します。
+                </p>
+                <p>
+                  無料枠では入力内容がGoogleの製品改善に利用される条件があります。顧客の機密情報を扱う場合は社内の取扱基準に合わせて設定してください。
+                  <a
+                    href="https://ai.google.dev/gemini-api/docs/pricing"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Googleの料金・データ利用条件
+                  </a>
                 </p>
                 <div className="sales-ai-detail">
                   <span>
@@ -1923,8 +1946,16 @@ export default function SalesWorkspace({
               />
             </label>
             <label>
-              担当グループ
-              <input name="group" defaultValue={selectedAccount?.group} />
+              担当組織
+              <OrganizationSelect
+                units={data.orgUnits || []}
+                name="orgUnitId"
+                defaultValue={selectedAccount?.orgUnitId || ""}
+              />
+              <small>
+                取込元のグループ：{selectedAccount?.group || "未設定"}
+                。組織は「メンバー」で登録できます。
+              </small>
             </label>
             <label>
               代理店・取引先
@@ -2133,6 +2164,32 @@ export default function SalesWorkspace({
         <SalesModal title={selectedMinute.title} close={close} wide>
           <div className="sales-minute-detail">
             <div className="sales-minute-meta">
+              {selectedMinute.supersededBy && (
+                <button
+                  className="button"
+                  onClick={() =>
+                    setDialog({
+                      type: "minuteDetail",
+                      id: selectedMinute.supersededBy,
+                    })
+                  }
+                >
+                  次の改訂版へ
+                </button>
+              )}
+              {selectedMinute.previousMinuteId && (
+                <button
+                  className="button"
+                  onClick={() =>
+                    setDialog({
+                      type: "minuteDetail",
+                      id: selectedMinute.previousMinuteId,
+                    })
+                  }
+                >
+                  改訂前の原文・要約へ
+                </button>
+              )}
               <span>
                 {
                   sales.accounts.find((a) => a.id === selectedMinute.accountId)
@@ -2151,6 +2208,34 @@ export default function SalesWorkspace({
               )}
             </div>
             <div className="sales-minute-detail-toolbar">
+              {selectedMinute.googleFileId && !selectedMinute.supersededBy && (
+                <button
+                  className="button"
+                  disabled={
+                    busy ||
+                    ["pending", "processing"].includes(selectedMinute.status) ||
+                    ["pending", "processing"].includes(
+                      selectedMinute.extraction?.status || "",
+                    )
+                  }
+                  onClick={() =>
+                    action(async () => {
+                      const result = await perform(
+                        `/minutes/${selectedMinute.id}/refresh`,
+                        { version: selectedMinute.version },
+                        "Googleドキュメントを確認しました。変更があれば改訂版を保存します。",
+                      );
+                      if (result.minute)
+                        setDialog({
+                          type: "minuteDetail",
+                          id: result.minute.id,
+                        });
+                    })
+                  }
+                >
+                  Googleから更新
+                </button>
+              )}
               <span className="pill sage">
                 {selectedMinute.summaryProvider === "gemini"
                   ? "Gemini要約"
@@ -2181,6 +2266,29 @@ export default function SalesWorkspace({
                   : "要約を作成・再実行"}
               </button>
             </div>
+            {selectedMinute.googleFileId && (
+              <p className="sales-muted">
+                最終取得：
+                {selectedMinute.lastSyncedAt
+                  ? new Date(selectedMinute.lastSyncedAt).toLocaleString(
+                      "ja-JP",
+                    )
+                  : "—"}
+                。変更前の原文・要約・タスクは改訂前の議事録に残ります。
+              </p>
+            )}
+            <MinuteNumbers
+              minute={selectedMinute}
+              configured={sales.connections.geminiConfigured}
+              request={api}
+              update={(suffix, body) =>
+                perform(
+                  `/minutes/${selectedMinute.id}/${suffix}`,
+                  body,
+                  "数値抽出・反映の状態を更新しました",
+                )
+              }
+            />
             {selectedMinute.summaryError && (
               <div className="form-error">{selectedMinute.summaryError}</div>
             )}
@@ -2255,6 +2363,12 @@ export default function SalesWorkspace({
                 })}
               </div>
             )}
+            <AuditHistory
+              request={api}
+              kind="salesMinutes"
+              recordId={selectedMinute.id}
+              members={data.members}
+            />
             <details className="sales-original" open={!selectedMinute.summary}>
               <summary>議事録の原文を読む</summary>
               <pre>{selectedMinute.text}</pre>
@@ -2868,6 +2982,7 @@ function MinuteForm({
 }) {
   const [body, setBody] = useState(""),
     [fileError, setFileError] = useState("");
+  const [importGoogle, setImportGoogle] = useState(false);
   return (
     <SalesModal title="議事録を保存" close={close} wide>
       <SalesForm
@@ -2877,14 +2992,42 @@ function MinuteForm({
             ...fields,
             text: body,
             autoSummarize: fields.autoSummarize === "on",
+            importGoogle,
+            autoExtract: fields.autoExtract === "on",
+            autoApplyNumbers: fields.autoApplyNumbers === "on",
           });
         }}
       >
         <AccountSelect accounts={accounts} selected={selected} />
+        <label>
+          登録方法
+          <select
+            aria-label="登録方法"
+            value={importGoogle ? "google" : "manual"}
+            onChange={(e) => setImportGoogle(e.target.value === "google")}
+          >
+            <option value="manual">本文を入力・ファイルから追加</option>
+            <option
+              value="google"
+              disabled={!sales.connections.driveConfigured}
+            >
+              Googleドキュメントを読み込む
+              {!sales.connections.driveConfigured ? "（サーバー未設定）" : ""}
+            </option>
+          </select>
+        </label>
         <div className="form-grid">
           <label>
             議事録タイトル
-            <input name="title" required placeholder="週次定例・予算提案" />
+            <input
+              name="title"
+              required={!importGoogle}
+              placeholder={
+                importGoogle
+                  ? "空欄ならGoogleのタイトルを使用"
+                  : "週次定例・予算提案"
+              }
+            />
           </label>
           <label>
             商談日
@@ -2896,51 +3039,98 @@ function MinuteForm({
             />
           </label>
         </div>
+        <div className="form-grid">
+          <label>
+            数字の対象月
+            <input
+              name="targetMonth"
+              type="month"
+              required
+              defaultValue={today().slice(0, 7)}
+            />
+          </label>
+          <label>
+            ヨミの反映先の会議週（月曜日）
+            <input
+              name="reviewWeek"
+              type="date"
+              required
+              defaultValue={weekMonday()}
+            />
+          </label>
+        </div>
         <label>
-          関連資料URL
+          {importGoogle ? "GoogleドキュメントURL" : "関連資料URL"}
           <input
             name="sourceUrl"
             type="url"
+            required={importGoogle}
             placeholder="https://docs.google.com/…"
           />
         </label>
-        <label className="sales-file-input">
-          <Upload size={16} />
-          テキストファイルから読み込む
+        {!importGoogle && (
+          <>
+            <label className="sales-file-input">
+              <Upload size={16} />
+              テキストファイルから読み込む
+              <input
+                type="file"
+                aria-label="議事録ファイル"
+                accept=".txt,.md"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 300000) {
+                    setFileError("ファイルは300KB以内にしてください。");
+                    return;
+                  }
+                  const content = await file.text();
+                  if (content.length > 80000) {
+                    setFileError("本文は80,000文字以内にしてください。");
+                    return;
+                  }
+                  setBody(content);
+                  setFileError("");
+                }}
+              />
+            </label>
+            <label>
+              議事録の原文
+              <textarea
+                aria-label="議事録の原文"
+                value={body}
+                required
+                onChange={(e) => setBody(e.target.value)}
+                maxLength={80000}
+                rows={10}
+                placeholder={"決定事項：…\n課題：…\n次のアクション：…"}
+              />
+            </label>
+            {fileError && <div className="form-error">{fileError}</div>}
+          </>
+        )}
+        {importGoogle && (
+          <p className="sales-muted">
+            サービスアカウントへ共有された文書を読み取ります。登録後は議事録詳細の「Googleから更新」で任意のタイミングに更新できます。
+          </p>
+        )}
+        <label className="check-label">
           <input
-            type="file"
-            aria-label="議事録ファイル"
-            accept=".txt,.md"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              if (file.size > 300000) {
-                setFileError("ファイルは300KB以内にしてください。");
-                return;
-              }
-              const content = await file.text();
-              if (content.length > 80000) {
-                setFileError("本文は80,000文字以内にしてください。");
-                return;
-              }
-              setBody(content);
-              setFileError("");
-            }}
+            name="autoExtract"
+            type="checkbox"
+            disabled={!sales.connections.geminiConfigured}
+            defaultChecked={sales.connections.geminiConfigured}
           />
+          保存後にヨミ・競合数値をGeminiで抽出する
         </label>
-        <label>
-          議事録の原文
-          <textarea
-            aria-label="議事録の原文"
-            value={body}
-            required
-            onChange={(e) => setBody(e.target.value)}
-            maxLength={80000}
-            rows={10}
-            placeholder={"決定事項：…\n課題：…\n次のアクション：…"}
+        <label className="check-label">
+          <input
+            name="autoApplyNumbers"
+            type="checkbox"
+            disabled={!sales.connections.geminiConfigured}
           />
+          当月の抽出値を未入力欄に自動反映する（入力済みの値は保持）
         </label>
-        {fileError && <div className="form-error">{fileError}</div>}
         <label className="check-label">
           <input name="autoSummarize" type="checkbox" defaultChecked />
           保存後に要約・要点抽出を実行する

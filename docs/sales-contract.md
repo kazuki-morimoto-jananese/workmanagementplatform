@@ -1,5 +1,7 @@
 # 営業拡張: 実装コントラクト
 
+v2.3: タスクはassigneeIds配列、assigneeIdは代表担当の互換項目。共通組織はorgUnitIdで参照。議事録はtargetMonth・reviewWeekを明示し、Google文書更新時は旧IDを保持して新しい改訂IDへ紐づける。AI数値は原文検証後の未入力欄のみ反映し、原文ハッシュ・実行者・反映項目を保存する。主要データの変更はaudit_logへ同じトランザクションで記録。[運用・連携ガイド](operations-and-integrations.md)を参照。
+
 内部の共通仕様。金額は円、空欄はnull、0は実測0。月はYYYY-MM、週はその週の月曜日YYYY-MM-DD（JST）。アカウントIDはスプレッドシートの文字列IDを維持する。
 
 ## 画面とAPI
@@ -9,6 +11,7 @@
 バックエンド `createSalesService({store,saveTask,activity})` in server/sales.mjs: `handle({path,method,body,user,send,url})` returns boolean (handled), `start()` scheduler, `stop()`. rootが既存認証・初回PW変更チェックの後に呼ぶ。bodyサイズはrootで2MBへ変更。
 
 API（以下すべて`/sales`接頭辞）:
+
 - GET `/bootstrap?month&weekOf` -> `{accounts,masters,reviews,opportunities,minutes,activities,imports,connections,history}`
 - POST `/accounts` / PATCH `/accounts/:id`: account fields。PATCHはversion必須。
 - POST `/reviews`: `{accountId,month,weekOf,version?,forecast,aggressive,probability,reason,nextAction,customerGoal,customerIssues,funnel,effectiveProposal,budgetTrend,media,observedAt}`。account+month+weekでupsert、既存はversion必須。入力済みのforecastにはreason必須。過去週の履歴を保持。

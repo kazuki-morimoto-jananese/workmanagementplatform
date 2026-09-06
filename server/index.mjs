@@ -5,6 +5,11 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createSalesService } from "./sales.mjs";
 import {
+  createWorkspaceService,
+  assignees,
+  orgReference,
+} from "./workspace.mjs";
+import {
   openStore,
   id,
   now,
@@ -13,6 +18,7 @@ import {
   verifyPassword,
   safeUser,
   seed,
+  auditContext,
 } from "./store.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -82,9 +88,6 @@ export function createApp(options = {}) {
       taskId,
       createdAt: now(),
     });
-    const list = store.all("activity");
-    for (const item of list.slice(0, Math.max(0, list.length - 500)))
-      store.remove("activity", item.id);
   };
   const notify = (userId, text, taskId) => {
     if (userId)
@@ -118,8 +121,28 @@ export function createApp(options = {}) {
     );
     fail(statuses.includes(t.status), 400, "ステータスが正しくありません。");
     fail(priorities.includes(t.priority), 400, "優先度が正しくありません。");
-    const assigneeId = str(t.assigneeId, 50);
-    fail(activeUser(assigneeId), 400, "有効な担当者を選択してください。");
+    const rawAssignees = Object.hasOwn(body, "assigneeIds")
+      ? body.assigneeIds
+      : Object.hasOwn(body, "assigneeId") &&
+          body.assigneeId !== previous?.assigneeId
+        ? body.assigneeId
+          ? [body.assigneeId]
+          : []
+        : assignees(t);
+    fail(Array.isArray(rawAssignees), 400, "担当者の形式を確認してください。");
+    const assigneeIds = [...new Set(rawAssignees)];
+    fail(
+      assigneeIds.length <= 30 &&
+        assigneeIds.every(
+          (uid) =>
+            typeof uid === "string" &&
+            uid &&
+            (activeUser(uid) || assignees(previous || {}).includes(uid)),
+        ),
+      400,
+      "有効な担当者を選択してください。",
+    );
+    const assigneeId = assigneeIds[0] || "";
     const startDate = date(t.startDate),
       dueDate = date(t.dueDate);
     fail(
@@ -240,6 +263,7 @@ export function createApp(options = {}) {
       status: t.status,
       priority: t.priority,
       assigneeId,
+      assigneeIds,
       startDate,
       dueDate,
       dependencies,
@@ -264,8 +288,12 @@ export function createApp(options = {}) {
         for (const pid of fields.projectIds)
           for (const rule of store.get("projects", pid).rules || [])
             if (rule.enabled && rule.status === fields.status) {
-              if (rule.assigneeId && activeUser(rule.assigneeId))
+              if (rule.assigneeId && activeUser(rule.assigneeId)) {
                 fields.assigneeId = rule.assigneeId;
+                fields.assigneeIds = [
+                  ...new Set([rule.assigneeId, ...fields.assigneeIds]),
+                ];
+              }
               if (rule.dueDays !== null) {
                 const due = new Date();
                 due.setDate(due.getDate() + rule.dueDays);
@@ -292,20 +320,23 @@ export function createApp(options = {}) {
         `「${task.title}」を${previous ? "更新" : "作成"}しました`,
         task.id,
       );
-      if (
-        task.assigneeId &&
-        task.assigneeId !== previous?.assigneeId &&
-        task.assigneeId !== user.id
-      )
-        notify(
-          task.assigneeId,
-          `「${task.title}」の担当者に設定されました`,
-          task.id,
-        );
+      for (const uid of task.assigneeIds.filter(
+        (uid) => uid !== user.id && !assignees(previous || {}).includes(uid),
+      ))
+        notify(uid, `「${task.title}」の担当者に設定されました`, task.id);
       return task;
     });
 
-  const sales = createSalesService({ store, saveTask, activity });
+  const sales = createSalesService({
+    store,
+    saveTask,
+    activity,
+    minuteAdapters: options.minuteAdapters,
+  });
+  const workspaceService = createWorkspaceService({
+    store,
+    dataDir: options.dataDir || process.env.DATA_DIR || resolve(root, "data"),
+  });
 
   async function handler(req, res) {
     const send = (status, body, headers = {}) => {
@@ -416,6 +447,7 @@ export function createApp(options = {}) {
         : null;
       const user = session ? store.user(session.user_id) : null;
       const signedIn = user?.active ? user : null;
+      auditContext.getStore().actorId = signedIn?.id || "anonymous";
       if (path === "/api/health" && method === "GET") {
         store.db.prepare("SELECT 1").get();
         return send(200, { status: "ok" });
@@ -458,6 +490,7 @@ export function createApp(options = {}) {
             mustChangePassword: false,
             createdAt: now(),
           };
+          auditContext.getStore().actorId = admin.id;
           store.saveUser(admin);
           seed(store, admin, workspace, body.samples === true);
         });
@@ -501,6 +534,8 @@ export function createApp(options = {}) {
           "アカウントが更新されました。再度ログインしてください。",
         );
         const newToken = randomBytes(32).toString("hex");
+        auditContext.getStore().actorId = member.id;
+        store.audit("auth", member.id, { event: "login" });
         store.db.prepare("DELETE FROM sessions WHERE expires<?").run(time);
         store.db
           .prepare("INSERT INTO sessions VALUES (?,?,?)")
@@ -513,6 +548,7 @@ export function createApp(options = {}) {
       }
       fail(signedIn, 401, "ログインしてください。");
       if (path === "/api/auth/logout" && method === "POST") {
+        store.audit("auth", user.id, { event: "logout" });
         store.db
           .prepare("DELETE FROM sessions WHERE token=?")
           .run(digest(token));
@@ -540,6 +576,7 @@ export function createApp(options = {}) {
           "アカウントが更新されました。再ログインしてください。",
         );
         store.saveUser({ ...current, password, mustChangePassword: false });
+        store.audit("auth", user.id, { event: "password_changed" });
         store.db
           .prepare("DELETE FROM sessions WHERE user_id=? AND token<>?")
           .run(user.id, digest(token));
@@ -551,6 +588,17 @@ export function createApp(options = {}) {
         "最初にパスワードを変更してください。",
       );
       if (
+        await workspaceService.handle({
+          path,
+          method,
+          body,
+          user: signedIn,
+          send,
+          url,
+        })
+      )
+        return;
+      if (
         path.startsWith("/api/sales/") &&
         (await sales.handle({ path, method, body, user: signedIn, send, url }))
       )
@@ -561,6 +609,10 @@ export function createApp(options = {}) {
           members: store.users().map(safeUser),
           projects: store.all("projects"),
           tasks: store.all("tasks"),
+          orgUnits: store.all("orgUnits"),
+          salesAccounts: store
+            .all("salesAccounts")
+            .map((a) => ({ id: a.id, name: a.name, isDemo: !!a.isDemo })),
           activity: store.all("activity").slice(-80).reverse(),
           notifications: store
             .all("notifications")
@@ -714,6 +766,12 @@ export function createApp(options = {}) {
           fields,
           rules,
           ownerId: previous?.ownerId || user.id,
+          orgUnitId: orgReference(store, merged.orgUnitId),
+          memberIds: [
+            ...new Set(Array.isArray(merged.memberIds) ? merged.memberIds : []),
+          ]
+            .filter((uid) => typeof uid === "string" && store.user(uid))
+            .slice(0, 200),
           createdAt: previous?.createdAt || now(),
         };
         store.put("projects", project);
@@ -786,12 +844,8 @@ export function createApp(options = {}) {
           };
           store.put("tasks", updated);
           activity(user, `「${task.title}」にコメントしました`, task.id);
-          if (task.assigneeId !== user.id)
-            notify(
-              task.assigneeId,
-              `「${task.title}」に新しいコメントがあります`,
-              task.id,
-            );
+          for (const uid of assignees(task).filter((uid) => uid !== user.id))
+            notify(uid, `「${task.title}」に新しいコメントがあります`, task.id);
           return send(201, updated);
         }
         if (taskMatch[2] === "approval" && method === "POST") {
@@ -925,10 +979,18 @@ export function createApp(options = {}) {
       else res.end();
     }
   }
-  const server = http.createServer(handler);
+  const server = http.createServer((req, res) =>
+    auditContext.run({ actorId: "anonymous" }, () => handler(req, res)),
+  );
   server.requestTimeout = 30000;
-  server.on("listening", () => sales.start());
-  server.on("close", () => sales.stop());
+  server.on("listening", () => {
+    sales.start();
+    workspaceService.start();
+  });
+  server.on("close", () => {
+    sales.stop();
+    workspaceService.stop();
+  });
   return { server, store };
 }
 if (

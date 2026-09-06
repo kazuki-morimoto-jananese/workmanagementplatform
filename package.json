@@ -1,6 +1,6 @@
 {
   "name": "worknest",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -16,7 +16,8 @@
     "test:browser": "node .browser-check.mjs --sales",
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
     "demo:sales": "node --env-file-if-exists=.env scripts/seed-sales-demo.mjs",
-    "preview": "node --env-file-if-exists=.env server/index.mjs"
+    "preview": "node --env-file-if-exists=.env server/index.mjs",
+    "restore": "node scripts/restore.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

@@ -7,6 +7,7 @@ import { createApp } from "./server/index.mjs";
 import { runSalesBrowserChecks } from "./tests/sales-browser.mjs";
 import { runTaskUxBrowserChecks } from "./tests/task-ux-browser.mjs";
 import { runSalesDemoBrowserChecks } from "./tests/sales-demo-browser.mjs";
+import { runWorkspaceBrowserChecks } from "./tests/workspace-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
 const { server, store } = createApp({
@@ -180,9 +181,14 @@ try {
   await modal.waitFor({ state: "hidden" });
   await page.getByText("hana@company.test", { exact: true }).waitFor();
   await runTaskUxBrowserChecks(page);
-  if (process.argv.includes("--sales")) {
+  if (
+    process.argv.includes("--sales") ||
+    process.argv.includes("--workspace-only")
+  ) {
     await runSalesBrowserChecks(page);
-    await runSalesDemoBrowserChecks(page);
+    if (!process.argv.includes("--workspace-only"))
+      await runSalesDemoBrowserChecks(page);
+    await runWorkspaceBrowserChecks(page);
   }
   await page.getByRole("button", { name: "ホーム", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });

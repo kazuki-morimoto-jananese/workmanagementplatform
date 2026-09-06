@@ -9,6 +9,8 @@ import {
   createHash,
 } from "node:crypto";
 import { promisify } from "node:util";
+import { AsyncLocalStorage } from "node:async_hooks";
+export const auditContext = new AsyncLocalStorage();
 const scrypt = promisify(scryptCb);
 export const id = () => randomUUID();
 export const now = () => new Date().toISOString();
@@ -30,7 +32,67 @@ export function openStore(directory) {
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires INTEGER NOT NULL);
-    CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(kind,id));`);
+    CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(kind,id));
+    CREATE TABLE IF NOT EXISTS audit_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, record_id TEXT NOT NULL, action TEXT NOT NULL, actor_id TEXT NOT NULL, created_at TEXT NOT NULL, before_data TEXT, after_data TEXT);
+    CREATE INDEX IF NOT EXISTS audit_record ON audit_log(kind,record_id,seq);
+    CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY);`);
+  const tracked = new Set([
+    "tasks",
+    "projects",
+    "salesAccounts",
+    "salesMasters",
+    "salesReviews",
+    "salesMinutes",
+    "salesOpportunities",
+    "salesActivities",
+    "salesSettings",
+    "orgUnits",
+    "settings",
+  ]);
+  const audit = (kind, rid, before, after, action) =>
+    db
+      .prepare(
+        "INSERT INTO audit_log(kind,record_id,action,actor_id,created_at,before_data,after_data) VALUES (?,?,?,?,?,?,?)",
+      )
+      .run(
+        kind,
+        rid,
+        action ||
+          (after === null ? "delete" : before === null ? "create" : "update"),
+        auditContext.getStore()?.actorId || "system",
+        now(),
+        before,
+        after,
+      );
+  const atomic = (fn) => {
+    if (db.isTransaction) return fn();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = fn();
+      db.exec("COMMIT");
+      return result;
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  };
+  // Existing content becomes the baseline. Earlier overwritten versions cannot be recovered.
+  atomic(() => {
+    if (!db.prepare("SELECT 1 FROM migrations WHERE id='audit-v1'").get()) {
+      for (const row of db.prepare("SELECT * FROM records").all())
+        if (tracked.has(row.kind))
+          audit(row.kind, row.id, null, row.data, "baseline");
+      for (const row of db.prepare("SELECT * FROM users").all())
+        audit(
+          "members",
+          row.id,
+          null,
+          JSON.stringify(safeUser(JSON.parse(row.data))),
+          "baseline",
+        );
+      db.prepare("INSERT INTO migrations VALUES ('audit-v1')").run();
+    }
+  });
   return {
     db,
     users: () =>
@@ -47,11 +109,22 @@ export function openStore(directory) {
       return row ? JSON.parse(row.data) : null;
     },
     saveUser: (user) =>
-      db
-        .prepare(
-          "INSERT INTO users VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,data=excluded.data",
-        )
-        .run(user.id, user.email, JSON.stringify(user)),
+      atomic(() => {
+        const old = db
+          .prepare("SELECT data FROM users WHERE id=?")
+          .get(user.id);
+        const before = old
+          ? JSON.stringify(safeUser(JSON.parse(old.data)))
+          : null;
+        const after = JSON.stringify(safeUser(user));
+        const result = db
+          .prepare(
+            "INSERT INTO users VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,data=excluded.data",
+          )
+          .run(user.id, user.email, JSON.stringify(user));
+        if (before !== after) audit("members", user.id, before, after);
+        return result;
+      }),
     all: (kind) =>
       db
         .prepare("SELECT data FROM records WHERE kind=? ORDER BY rowid")
@@ -64,13 +137,34 @@ export function openStore(directory) {
       return row ? JSON.parse(row.data) : null;
     },
     put: (kind, record) =>
-      db
-        .prepare(
-          "INSERT INTO records VALUES (?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
-        )
-        .run(kind, record.id, JSON.stringify(record)),
+      atomic(() => {
+        const before =
+          db
+            .prepare("SELECT data FROM records WHERE kind=? AND id=?")
+            .get(kind, record.id)?.data ?? null;
+        const after = JSON.stringify(record);
+        const result = db
+          .prepare(
+            "INSERT INTO records VALUES (?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
+          )
+          .run(kind, record.id, after);
+        if (tracked.has(kind) && before !== after)
+          audit(kind, record.id, before, after);
+        return result;
+      }),
     remove: (kind, rid) =>
-      db.prepare("DELETE FROM records WHERE kind=? AND id=?").run(kind, rid),
+      atomic(() => {
+        const before = db
+          .prepare("SELECT data FROM records WHERE kind=? AND id=?")
+          .get(kind, rid)?.data;
+        const result = db
+          .prepare("DELETE FROM records WHERE kind=? AND id=?")
+          .run(kind, rid);
+        if (tracked.has(kind) && before) audit(kind, rid, before, null);
+        return result;
+      }),
+    audit: (kind, rid, after) =>
+      audit(kind, rid, null, JSON.stringify(after), "event"),
     transaction(fn) {
       db.exec("BEGIN IMMEDIATE");
       try {

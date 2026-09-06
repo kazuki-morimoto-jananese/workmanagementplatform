@@ -1,5 +1,7 @@
 import { id, now } from "./store.mjs";
 import { seedSalesDemo, demoPeriods } from "./sales-demo.mjs";
+import { createMinuteService } from "./minutes.mjs";
+import { orgReference, orgPath } from "./workspace.mjs";
 import { buildPreview, emptyMedia, numeric, csvCell } from "./sales-import.mjs";
 import {
   integrationStatus,
@@ -63,7 +65,12 @@ function mediaValue(raw = {}) {
   m.acceptableCpa = numeric(raw?.acceptableCpa, "許容CPA");
   return m;
 }
-export function createSalesService({ store, saveTask, activity }) {
+export function createSalesService({
+  store,
+  saveTask,
+  activity,
+  minuteAdapters = {},
+}) {
   let timer = null,
     stopped = false,
     syncing = false,
@@ -119,6 +126,7 @@ export function createSalesService({ store, saveTask, activity }) {
       ownerId: text(input.ownerId, 100),
       ownerName: text(input.ownerName, 100),
       group: text(input.group, 100),
+      orgUnitId: orgReference(store, input.orgUnitId),
       category: text(input.category, 80),
       agency: text(input.agency, 200),
       projectId: text(input.projectId, 100),
@@ -333,6 +341,26 @@ export function createSalesService({ store, saveTask, activity }) {
           summaryError: "",
         });
         try {
+          if (integrationStatus().geminiConfigured) {
+            const usageId = "summary:" + jstToday();
+            const usage = store.get("aiUsage", usageId) || {
+              id: usageId,
+              count: 0,
+            };
+            check(
+              usage.count <
+                Math.max(
+                  1,
+                  Math.min(
+                    1000,
+                    Number(process.env.GEMINI_DAILY_SUMMARIES) || 20,
+                  ),
+                ),
+              "本日のGemini要約上限に達しました。翌日以降に再試行してください。",
+              429,
+            );
+            store.put("aiUsage", { ...usage, count: usage.count + 1 });
+          }
           const result = await summarizeMinutes(minute);
           if (stopped) break;
           const fresh = store.get("salesMinutes", minuteId);
@@ -384,6 +412,12 @@ export function createSalesService({ store, saveTask, activity }) {
     void drain();
     return item;
   }
+  const minuteService = createMinuteService({
+    store,
+    saveReview,
+    enqueueSummary: enqueue,
+    ...minuteAdapters,
+  });
   async function sync(user) {
     check(!syncing, "同期処理が実行中です。", 409);
     const source = store.get("salesSettings", "source");
@@ -474,13 +508,20 @@ export function createSalesService({ store, saveTask, activity }) {
     };
     const admin = () =>
       check(user.role === "admin", "管理者のみ操作できます。", 403);
+    if (await minuteService.handle({ p, method, body, user, reply }))
+      return true;
     if (p === "/sales/bootstrap" && method === "GET") {
       const month = monthValue(
         url.searchParams.get("month") || jstToday().slice(0, 7),
       );
       const source = store.get("salesSettings", "source");
       return reply(200, {
-        accounts: store.all("salesAccounts"),
+        accounts: store
+          .all("salesAccounts")
+          .map((a) => ({
+            ...a,
+            group: a.orgUnitId ? orgPath(store, a.orgUnitId) : a.group,
+          })),
         demoPeriods: demoPeriods(jstToday()),
         masters: store.all("salesMasters").filter((m) => m.month === month),
         reviews: store.all("salesReviews").filter((r) => r.month === month),
@@ -578,6 +619,28 @@ export function createSalesService({ store, saveTask, activity }) {
     }
     if (p === "/sales/minutes" && method === "POST") {
       account(body.accountId);
+      const document = await minuteService.document(body);
+      check(store.user(user.id)?.active, "ログインし直してください。", 401);
+      if (document) {
+        check(
+          !store
+            .all("salesMinutes")
+            .some(
+              (m) =>
+                m.googleFileId === document.fileId &&
+                m.accountId === body.accountId &&
+                !m.supersededBy,
+            ),
+          "登録済みです。既存議事録から更新してください。",
+          409,
+        );
+        body = {
+          ...body,
+          text: document.text,
+          title: body.title || document.title,
+          sourceUrl: document.sourceUrl,
+        };
+      }
       if (body.opportunityId)
         check(
           store.get("salesOpportunities", body.opportunityId)?.accountId ===
@@ -605,6 +668,22 @@ export function createSalesService({ store, saveTask, activity }) {
         opportunityId: text(body.opportunityId, 100),
         title: text(body.title, 200),
         meetingDate: dateValue(body.meetingDate, true),
+        targetMonth: monthValue(
+          body.targetMonth || body.meetingDate?.slice(0, 7),
+        ),
+        reviewWeek: body.reviewWeek
+          ? dateValue(body.reviewWeek, true)
+          : monday(),
+        autoExtract: body.autoExtract === true,
+        autoApplyNumbers: body.autoApplyNumbers === true,
+        autoSummarize: body.autoSummarize === true,
+        ...(document
+          ? {
+              googleFileId: document.fileId,
+              googleModifiedTime: document.modifiedTime,
+              lastSyncedAt: now(),
+            }
+          : {}),
         text: body.text.trim(),
         sourceUrl,
         createdAt: now(),
@@ -616,10 +695,16 @@ export function createSalesService({ store, saveTask, activity }) {
         taskLinks: [],
         version: 1,
       };
+      check(
+        item.reviewWeek === monday(item.reviewWeek),
+        "反映先の会議週には月曜日を指定してください。",
+      );
       store.put("salesMinutes", item);
       changeContact(item.accountId, item.meetingDate);
       if (body.autoSummarize === true || integrationStatus().autoSummaryEnabled)
         enqueue(item);
+      if (item.autoExtract && integrationStatus().geminiConfigured)
+        minuteService.enqueue(store.get("salesMinutes", item.id), user);
       return reply(201, store.get("salesMinutes", item.id));
     }
     const mm = p.match(/^\/sales\/minutes\/([^/]+)\/(summarize|tasks)$/);
@@ -844,6 +929,7 @@ export function createSalesService({ store, saveTask, activity }) {
     start() {
       if (timer) return;
       stopped = false;
+      minuteService.start();
       for (const m of store.all("salesMinutes"))
         if (["processing", "pending"].includes(m.status)) {
           store.put("salesMinutes", { ...m, status: "pending" });
@@ -856,6 +942,7 @@ export function createSalesService({ store, saveTask, activity }) {
     },
     stop() {
       stopped = true;
+      minuteService.stop();
       if (timer) clearInterval(timer);
       timer = null;
     },
