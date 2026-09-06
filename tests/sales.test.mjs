@@ -300,6 +300,17 @@ test("sales workflows preserve manual forecasts, history, raw metrics and task l
         }
         assert.equal(minute.status, "completed");
         assert.equal(minute.summaryProvider, "local");
+        const audit = await call(
+          `/audit?kind=salesMinutes&recordId=${minute.id}`,
+        );
+        const completed = audit.body.entries.find(
+          (entry) => entry.after_data?.status === "completed",
+        );
+        assert.equal(
+          completed.actor_id,
+          "system",
+          "The summary worker must not inherit another request's actor",
+        );
         assert.ok(minute.summary.actions.length > 0);
         assert.ok(minute.text.includes("課題"));
         const taskInput = {

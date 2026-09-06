@@ -1,4 +1,4 @@
-import { id, now } from "./store.mjs";
+import { id, now, auditContext } from "./store.mjs";
 import { seedSalesDemo, demoPeriods } from "./sales-demo.mjs";
 import { createMinuteService } from "./minutes.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
@@ -409,7 +409,7 @@ export function createSalesService({
     };
     store.put("salesMinutes", item);
     queue.push(item.id);
-    void drain();
+    void auditContext.run({ actorId: "system" }, () => drain());
     return item;
   }
   const minuteService = createMinuteService({
@@ -516,12 +516,10 @@ export function createSalesService({
       );
       const source = store.get("salesSettings", "source");
       return reply(200, {
-        accounts: store
-          .all("salesAccounts")
-          .map((a) => ({
-            ...a,
-            group: a.orgUnitId ? orgPath(store, a.orgUnitId) : a.group,
-          })),
+        accounts: store.all("salesAccounts").map((a) => ({
+          ...a,
+          group: a.orgUnitId ? orgPath(store, a.orgUnitId) : a.group,
+        })),
         demoPeriods: demoPeriods(jstToday()),
         masters: store.all("salesMasters").filter((m) => m.month === month),
         reviews: store.all("salesReviews").filter((r) => r.month === month),
@@ -935,7 +933,7 @@ export function createSalesService({
           store.put("salesMinutes", { ...m, status: "pending" });
           queue.push(m.id);
         }
-      void drain();
+      void auditContext.run({ actorId: "system" }, () => drain());
       timer = setInterval(tick, 60000);
       timer.unref();
       tick();
