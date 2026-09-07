@@ -8,6 +8,7 @@ import { runSalesBrowserChecks } from "./tests/sales-browser.mjs";
 import { runTaskUxBrowserChecks } from "./tests/task-ux-browser.mjs";
 import { runSalesDemoBrowserChecks } from "./tests/sales-demo-browser.mjs";
 import { runWorkspaceBrowserChecks } from "./tests/workspace-browser.mjs";
+import { runExcelBrowserChecks } from "./tests/excel-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
 const cloud = process.argv.includes("--cloud");
@@ -232,6 +233,7 @@ try {
     if (!process.argv.includes("--workspace-only"))
       await runSalesDemoBrowserChecks(page);
     await runWorkspaceBrowserChecks(page);
+    await runExcelBrowserChecks(page);
   }
   await page.getByRole("button", { name: "ホーム", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });

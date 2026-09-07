@@ -1021,11 +1021,19 @@
   padding: 4px;
 }
 .sales-mapping-grid label {
+  min-width: 0;
   font-size: 9px;
 }
 .sales-mapping-grid select {
+  max-width: 100%;
   font-size: 9px;
   padding: 7px;
+}
+.sales-excel-options p {
+  grid-column: 1 / -1;
+}
+.sales-file-name {
+  overflow-wrap: anywhere;
 }
 .sales-preview-error {
   font-size: 10px;

@@ -52,6 +52,7 @@ import type {
 import "./sales.css";
 import { OrganizationSelect, AuditHistory } from "./WorkspaceAdmin";
 import { MinuteNumbers } from "./MinuteNumbers";
+import { SalesImportFile } from "./SalesImportFile";
 
 type Props = {
   data: Data;
@@ -443,6 +444,9 @@ export default function SalesWorkspace({
     [onlyMissing, setOnlyMissing] = useState(false),
     [dialog, setDialog] = useState<Dialog | null>(null);
   const [importText, setImportText] = useState(""),
+    [importSource, setImportSource] = useState("手動取込"),
+    [importLoading, setImportLoading] = useState(false),
+    [importReset, setImportReset] = useState(0),
     [preview, setPreview] = useState<ImportPreview | null>(null),
     [mapping, setMapping] = useState<Record<string, string | number>>({}),
     [mappingDirty, setMappingDirty] = useState(false),
@@ -472,6 +476,7 @@ export default function SalesWorkspace({
     scopedIds.has(h.accountId),
   );
   const changeMonth = (value: string) => {
+    setPreview(null);
     setMonth(value);
     const period = sales.demoPeriods?.find((p) => p.month === value);
     if (effectiveScope === "demo" && period) setWeek(period.reportWeek);
@@ -684,18 +689,6 @@ export default function SalesWorkspace({
         "タスク情報を再取得してください。削除されている可能性があります。",
       );
   };
-  async function readFile(
-    file: File | undefined,
-    setter: (text: string) => void,
-    max = 1800000,
-  ) {
-    if (!file) return;
-    if (file.size > max) {
-      setError("ファイルが大きすぎます。内容を分けてください。");
-      return;
-    }
-    setter(await file.text());
-  }
   const exportData = () =>
     action(async () => {
       const result = await api<{ csv: string; filename: string }>(
@@ -1448,9 +1441,9 @@ export default function SalesWorkspace({
               <section className="sales-connection-top">
                 <div>
                   <span className="eyebrow">A RELIABLE SOURCE OF TRUTH</span>
-                  <h2>スプシをつなぐ。入力を守る。</h2>
+                  <h2>Excel・スプシを取り込む。入力を守る。</h2>
                   <p>
-                    マスタは日次で更新。担当者のヨミと議事録は、Worknestに履歴として残ります。
+                    Excelはファイル選択で手動更新。Google連携が可能な場合は日次同期も使えます。担当者のヨミ・商談・議事録は保持します。
                   </p>
                 </div>
                 <ShieldCheck size={38} />
@@ -1460,36 +1453,36 @@ export default function SalesWorkspace({
                   <div className="section-heading">
                     <h2>
                       <Upload size={18} />
-                      CSV・スプシ貼り付け取込
+                      Excel・CSV・貼り付け取込
                     </h2>
                     <span className="pill neutral">対象月 {month}</span>
                   </div>
                   <p>
-                    見出しを含めてコピーしてください。CSV /
-                    TSVの改行入りセルに対応しています。
+                    スプシの「ファイル → ダウンロード → Microsoft
+                    Excel（.xlsx）」から保存したファイルを選択できます。見出しを含むコピー・貼り付けにも対応しています。
                   </p>
-                  <label className="sales-file-input">
-                    <Upload size={15} />
-                    CSV / TSV / テキストを選択
-                    <input
-                      aria-label="営業マスタファイル"
-                      type="file"
-                      accept=".csv,.tsv,.txt"
-                      onChange={(e) =>
-                        readFile(e.target.files?.[0], (t) => {
-                          setImportText(t);
-                          setPreview(null);
-                          setMapping({});
-                        })
-                      }
-                    />
-                  </label>
+                  <SalesImportFile
+                    key={importReset}
+                    disabled={busy}
+                    onLoading={setImportLoading}
+                    onChange={(text, source) => {
+                      setImportText(text);
+                      setImportSource(source || "手動取込");
+                      setPreview(null);
+                      setMapping({});
+                      setMappingDirty(false);
+                    }}
+                  />
+                  <p className="sales-muted">
+                    ファイルはブラウザー内で読み取ります。「取込内容を確認」で選択した表をWorknestへ送信し、確定すると保存します。ファイルからの自動・日次更新は行いません。
+                  </p>
                   <textarea
                     aria-label="営業マスタ貼り付け"
                     placeholder={
                       "アカウントID\tアカウント名\t今週Gトレ\t今月ヨミ\n…"
                     }
                     value={importText}
+                    disabled={busy || importLoading}
                     onChange={(e) => {
                       setImportText(e.target.value);
                       setPreview(null);
@@ -1499,7 +1492,7 @@ export default function SalesWorkspace({
                   <div className="sales-import-actions">
                     <button
                       className="button"
-                      disabled={!importText || busy}
+                      disabled={!importText || busy || importLoading}
                       onClick={() =>
                         action(async () => {
                           const p = await api<ImportPreview>(
@@ -1599,6 +1592,7 @@ export default function SalesWorkspace({
                         disabled={
                           !admin ||
                           busy ||
+                          importLoading ||
                           mappingDirty ||
                           preview.errors.length > 0
                         }
@@ -1610,13 +1604,15 @@ export default function SalesWorkspace({
                                 text: importText,
                                 month,
                                 mapping,
-                                sourceName: "手動取込",
+                                sourceName: importSource,
                                 seedReviews,
                               },
                               "マスタを取り込みました。入力済みのヨミは保持しています。",
                             );
                             setPreview(null);
                             setImportText("");
+                            setImportSource("手動取込");
+                            setImportReset((value) => value + 1);
                           })
                         }
                       >
