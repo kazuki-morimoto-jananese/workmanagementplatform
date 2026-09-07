@@ -18,7 +18,7 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CompanyWorkspace"] }],
   "vars": {
     "NODE_ENV": "production",
-    "GEMINI_MODEL": "gemini-2.5-flash",
+    "GEMINI_MODEL": "gemini-3.1-flash-lite",
     "GEMINI_AUTO_SUMMARY": "false",
     "GEMINI_DAILY_EXTRACTIONS": "20",
     "GEMINI_DAILY_SUMMARIES": "20",

@@ -92,7 +92,7 @@ Google AI Studioで利用できるGemini APIキーとモデルを確認し、サ
 
 ```dotenv
 GEMINI_API_KEY=your-api-key
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.1-flash-lite
 GEMINI_AUTO_SUMMARY=true
 ```
 

@@ -30,7 +30,7 @@ export function prepareCompany({
     `SETUP_TOKEN=${randomBytes(32).toString("hex")}`,
     "# Leave Gemini disabled until company data handling is agreed.",
     "GEMINI_API_KEY=",
-    "GEMINI_MODEL=gemini-2.5-flash",
+    "GEMINI_MODEL=gemini-3.1-flash-lite",
     "GEMINI_AUTO_SUMMARY=false",
     "GEMINI_DAILY_EXTRACTIONS=20",
     "GEMINI_DAILY_SUMMARIES=20",

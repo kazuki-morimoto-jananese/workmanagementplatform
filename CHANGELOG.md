@@ -1,5 +1,9 @@
 # 更新履歴
 
+## 公開環境の接続修正 — 2026-09-07
+
+- Geminiの初期モデルを、新規利用者への提供が終了した2.5 Flashから3.1 Flash-Liteへ変更。架空議事録で構造化要約の実接続を検証。
+
 ## 2.5.0 — 2026-09-07
 
 - Cloudflare Workers Free・SQLite付きDurable Objects向けに、既存の業務API・認証・監査保存を接続する構成を追加。
