@@ -4,6 +4,9 @@ import { createMinuteService } from "./minutes.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
 import { syncTime, scheduledSyncDue } from "./sales-schedule.mjs";
 import { withImportedForecast, savePersonalTargets } from "./sales-targets.mjs";
+import { canReadTask, redactTaskReferences } from "./task-options.mjs";
+import { googleUserStatus } from "./google-user.mjs";
+import { extractMinuteNumbers } from "./minute-integrations.mjs";
 import { buildPreview, emptyMedia, numeric, csvCell } from "./sales-import.mjs";
 import {
   integrationStatus,
@@ -508,7 +511,7 @@ export function createSalesService({
     const p = path.replace(/^\/api/, "");
     if (!p.startsWith("/sales/")) return false;
     const reply = (status, result) => {
-      send(status, result);
+      send(status, redactTaskReferences(result, user, store));
       return true;
     };
     const admin = () =>
@@ -541,13 +544,76 @@ export function createSalesService({
         minutes: store.all("salesMinutes").reverse(),
         activities: store.all("salesActivities").reverse(),
         imports: store.all("salesImports").slice(-50).reverse(),
-        connections: { ...integrationStatus(), source },
+        connections: {
+          ...integrationStatus(),
+          driveConfigured:
+            integrationStatus().driveConfigured ||
+            googleUserStatus(store, user).connected,
+          source,
+        },
         history: store
           .all("salesHistory")
           .filter((h) => h.kind === "review" && h.month === month)
           .slice(-300)
           .reverse(),
       });
+    }
+    if (p === "/sales/connections/test" && method === "POST") {
+      admin();
+      const usageId = "diagnostic:" + jstToday(),
+        usage = store.get("aiUsage", usageId) || { id: usageId, count: 0 };
+      check(
+        usage.count < 20,
+        "本日の接続テスト上限（20回）に達しました。",
+        429,
+      );
+      store.put("aiUsage", { ...usage, count: usage.count + 1 });
+      const start = Date.now();
+      try {
+        const test = {
+          title: "Worknest接続確認",
+          meetingDate: jstToday(),
+          targetMonth: jstToday().slice(0, 7),
+          text: `これは架空の接続テストです。${jstToday().slice(0, 7)}の今月ヨミは100000円です。次回の会議日を確認することに合意しました。`,
+        };
+        const result =
+          body.type === "numbers"
+            ? {
+                provider: "gemini",
+                extraction: await extractMinuteNumbers(test),
+              }
+            : await summarizeMinutes(test);
+        if (body.type === "numbers")
+          check(
+            result.extraction.fields.some(
+              (f) => f.path === "forecast" && f.value === 100000,
+            ),
+            "Geminiとの通信は成功しましたが、数値抽出の検証値が一致しません。再試行してください。",
+            503,
+          );
+        return reply(200, {
+          ok: result.provider === "gemini",
+          provider: result.provider,
+          elapsedMs: Date.now() - start,
+        });
+      } catch (e) {
+        const raw = String(e.cause?.message || "");
+        const code = /illegal invocation/i.test(raw)
+          ? "ILLEGAL_INVOCATION"
+          : /redirect/i.test(raw)
+            ? "REDIRECT"
+            : /I\/O|request context|different request/i.test(raw)
+              ? "REQUEST_CONTEXT"
+              : /abort|timeout/i.test(raw)
+                ? "TIMEOUT"
+                : e.cause?.name || "HTTP_ERROR";
+        return reply(200, {
+          ok: false,
+          message: e.message,
+          code,
+          elapsedMs: Date.now() - start,
+        });
+      }
     }
     const am = p.match(/^\/sales\/accounts(?:\/([^/]+))?$/);
     if (p === "/sales/targets" && method === "POST")
@@ -670,7 +736,7 @@ export function createSalesService({
     }
     if (p === "/sales/minutes" && method === "POST") {
       account(body.accountId);
-      const document = await minuteService.document(body);
+      const document = await minuteService.document(body, user);
       check(store.user(user.id)?.active, "ログインし直してください。", 401);
       if (document) {
         check(
@@ -782,6 +848,11 @@ export function createSalesService({
             t.minuteActionIndex === body.actionIndex,
         );
       if (existing) {
+        check(
+          canReadTask(existing, user),
+          "このアクションのタスクは非公開です。作成者に確認してください。",
+          403,
+        );
         if (!minute.taskLinks.some((l) => l.actionIndex === body.actionIndex))
           store.put("salesMinutes", {
             ...minute,

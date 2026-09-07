@@ -5,6 +5,13 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createSalesService } from "./sales.mjs";
 import {
+  canReadTask,
+  visibleTask,
+  recurrenceInput,
+  nextOccurrence,
+} from "./task-options.mjs";
+import { createGoogleUserService } from "./google-user.mjs";
+import {
   createWorkspaceService,
   assignees,
   orgReference,
@@ -103,7 +110,7 @@ export function createApp(options = {}) {
       });
   };
   const activeUser = (uid) => !uid || store.user(uid)?.active;
-  const taskInput = (body, previous = null) => {
+  const taskInput = (body, previous = null, user) => {
     const t = { ...(previous || {}), ...body };
     const title = str(t.title, 200);
     fail(title, 400, "タスク名を入力してください。");
@@ -161,7 +168,7 @@ export function createApp(options = {}) {
           (d) =>
             typeof d === "string" &&
             d !== previous?.id &&
-            store.get("tasks", d),
+            canReadTask(store.get("tasks", d), user),
         ),
       400,
       "依存タスクが正しくありません。",
@@ -256,6 +263,12 @@ export function createApp(options = {}) {
       "議事録のアクションが正しくありません。",
     );
     return {
+      visibility: ["workspace", "private"].includes(t.visibility || "workspace")
+        ? t.visibility || "workspace"
+        : (() => {
+            throw new HttpError(400, "公開範囲を選択してください。");
+          })(),
+      recurrence: recurrenceInput(t.recurrence, dueDate),
       accountId,
       minuteId,
       minuteActionIndex,
@@ -285,12 +298,31 @@ export function createApp(options = {}) {
           409,
           "他のメンバーが更新しました。最新データを再読み込みしてから編集してください。",
         );
-      const fields = taskInput(body, previous);
+      const fields = taskInput(body, previous, user);
+      if (previous && user.role !== "admin" && previous.createdBy !== user.id) {
+        fail(
+          fields.visibility === (previous.visibility || "workspace"),
+          403,
+          "公開範囲を変更できるのは作成者と管理者です。",
+        );
+        if (fields.visibility === "private")
+          fail(
+            JSON.stringify([...fields.assigneeIds].sort()) ===
+              JSON.stringify([...assignees(previous)].sort()),
+            403,
+            "非公開タスクの担当者変更は作成者か管理者に依頼してください。",
+          );
+      }
       if (previous && previous.status !== fields.status)
         for (const pid of fields.projectIds)
           for (const rule of store.get("projects", pid).rules || [])
             if (rule.enabled && rule.status === fields.status) {
-              if (rule.assigneeId && activeUser(rule.assigneeId)) {
+              if (
+                rule.assigneeId &&
+                activeUser(rule.assigneeId) &&
+                (fields.visibility !== "private" ||
+                  fields.assigneeIds.includes(rule.assigneeId))
+              ) {
                 fields.assigneeId = rule.assigneeId;
                 fields.assigneeIds = [
                   ...new Set([rule.assigneeId, ...fields.assigneeIds]),
@@ -307,6 +339,12 @@ export function createApp(options = {}) {
               }
             }
       const task = {
+        recurrenceNextId: previous?.recurrenceNextId || "",
+        recurrenceParentId: previous?.recurrenceParentId || "",
+        recurrenceAnchor:
+          previous?.dueDate === fields.dueDate
+            ? previous?.recurrenceAnchor
+            : undefined,
         id: previous?.id || id(),
         ...fields,
         comments: previous?.comments || [],
@@ -317,6 +355,25 @@ export function createApp(options = {}) {
         updatedAt: now(),
       };
       store.put("tasks", task);
+      if (
+        task.status === "done" &&
+        previous?.status !== "done" &&
+        task.recurrence &&
+        !task.recurrenceNextId
+      ) {
+        const next = nextOccurrence(task);
+        store.put("tasks", next);
+        task.recurrenceNextId = next.id;
+        store.put("tasks", task);
+        activity(user, `「${next.title}」の次回タスクを作成しました`, next.id);
+        for (const uid of next.assigneeIds)
+          if (uid !== user.id)
+            notify(
+              uid,
+              `「${next.title}」の次回タスクが作成されました`,
+              next.id,
+            );
+      }
       activity(
         user,
         `「${task.title}」を${previous ? "更新" : "作成"}しました`,
@@ -326,14 +383,18 @@ export function createApp(options = {}) {
         (uid) => uid !== user.id && !assignees(previous || {}).includes(uid),
       ))
         notify(uid, `「${task.title}」の担当者に設定されました`, task.id);
-      return task;
+      return visibleTask(task, user, store);
     });
 
+  const googleUser = createGoogleUserService(store, options.googleAdapters);
   const sales = createSalesService({
     store,
     saveTask,
     activity,
-    minuteAdapters: options.minuteAdapters,
+    minuteAdapters: {
+      readDocument: googleUser.readDocument,
+      ...options.minuteAdapters,
+    },
     sheetReader: options.sheetReader,
     background: options.background,
   });
@@ -601,6 +662,17 @@ export function createApp(options = {}) {
         "最初にパスワードを変更してください。",
       );
       if (
+        await googleUser.handle({
+          path,
+          method,
+          body,
+          user: signedIn,
+          send,
+          url,
+        })
+      )
+        return;
+      if (
         await workspaceService.handle({
           path,
           method,
@@ -621,15 +693,29 @@ export function createApp(options = {}) {
           user: safeUser(user),
           members: store.users().map(safeUser),
           projects: store.all("projects"),
-          tasks: store.all("tasks"),
+          tasks: store
+            .all("tasks")
+            .filter((t) => canReadTask(t, user))
+            .map((t) => visibleTask(t, user, store)),
           orgUnits: store.all("orgUnits"),
           salesAccounts: store
             .all("salesAccounts")
             .map((a) => ({ id: a.id, name: a.name, isDemo: !!a.isDemo })),
-          activity: store.all("activity").slice(-80).reverse(),
+          activity: store
+            .all("activity")
+            .filter(
+              (a) =>
+                !a.taskId || canReadTask(store.get("tasks", a.taskId), user),
+            )
+            .slice(-80)
+            .reverse(),
           notifications: store
             .all("notifications")
-            .filter((n) => n.userId === user.id)
+            .filter(
+              (n) =>
+                n.userId === user.id &&
+                (!n.taskId || canReadTask(store.get("tasks", n.taskId), user)),
+            )
             .slice(-100)
             .reverse(),
           workspace: store.get("settings", "workspace"),
@@ -820,7 +906,7 @@ export function createApp(options = {}) {
       );
       if (taskMatch) {
         const task = store.get("tasks", taskMatch[1]);
-        fail(task, 404, "タスクが見つかりません。");
+        fail(canReadTask(task, user), 404, "タスクが見つかりません。");
         if (!taskMatch[2] && method === "PATCH")
           return send(200, saveTask(body, user, task));
         if (!taskMatch[2] && method === "DELETE") {
@@ -839,7 +925,7 @@ export function createApp(options = {}) {
                   version: other.version + 1,
                   updatedAt: now(),
                 });
-            activity(user, `「${task.title}」を削除しました`);
+            activity(user, `「${task.title}」を削除しました`, task.id);
           });
           return send(200, { ok: true });
         }
@@ -859,11 +945,16 @@ export function createApp(options = {}) {
           activity(user, `「${task.title}」にコメントしました`, task.id);
           for (const uid of assignees(task).filter((uid) => uid !== user.id))
             notify(uid, `「${task.title}」に新しいコメントがあります`, task.id);
-          return send(201, updated);
+          return send(201, visibleTask(updated, user, store));
         }
         if (taskMatch[2] === "approval" && method === "POST") {
           let approval;
           if (body.action === "request") {
+            fail(
+              canReadTask(task, store.user(body.reviewerId) || {}),
+              403,
+              "非公開タスクの承認は、担当者または管理者に依頼してください。",
+            );
             fail(
               body.reviewerId && activeUser(body.reviewerId),
               400,
@@ -922,7 +1013,7 @@ export function createApp(options = {}) {
           };
           store.put("tasks", updated);
           activity(user, `「${task.title}」の承認状況を更新しました`, task.id);
-          return send(200, updated);
+          return send(200, visibleTask(updated, user, store));
         }
         if (taskMatch[2] === "calendar" && method === "GET") {
           fail(task.dueDate, 400, "先に期日を設定してください。");

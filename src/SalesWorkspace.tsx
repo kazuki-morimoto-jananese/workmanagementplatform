@@ -53,6 +53,7 @@ import "./sales.css";
 import { OrganizationSelect, AuditHistory } from "./WorkspaceAdmin";
 import { MinuteNumbers } from "./MinuteNumbers";
 import { SalesImportFile } from "./SalesImportFile";
+import { IntegrationHealth } from "./IntegrationHealth";
 import { PersonalTargets } from "./PersonalTargets";
 import {
   importedReview,
@@ -1959,6 +1960,7 @@ export default function SalesWorkspace({
                   </p>
                 </section>
               </div>
+              <IntegrationHealth api={api} admin={data.user.role === "admin"} />
               <section className="panel sales-ai-config">
                 <div className="section-heading">
                   <h2>
@@ -3342,7 +3344,7 @@ function MinuteForm({
         )}
         {importGoogle && (
           <p className="sales-muted">
-            サービスアカウントへ共有された文書を読み取ります。登録後は議事録詳細の「Googleから更新」で任意のタイミングに更新できます。
+            Google本人認証で接続したアカウント、またはサービスアカウントに閲覧権限がある文書を読み取ります。登録後は議事録詳細の「Googleから更新」で任意のタイミングに更新できます。
           </p>
         )}
         <label className="check-label">

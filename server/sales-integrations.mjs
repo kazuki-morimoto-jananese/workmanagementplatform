@@ -52,13 +52,30 @@ export async function jsonRequest(
     response = await fetchImpl(url, {
       ...init,
       signal: AbortSignal.timeout(45000),
-      redirect: "error",
+      redirect: "manual",
     });
-  } catch {
-    throw problem(
-      "外部サービスへの接続が失敗またはタイムアウトしました。接続設定を確認して再試行してください。",
+  } catch (error) {
+    const message = String(error?.message || "");
+    const reason = /illegal invocation/i.test(message)
+      ? "呼び出しコンテキスト不正"
+      : /redirect/i.test(message)
+        ? "リダイレクト処理"
+        : /I\/O|request context|different request/i.test(message)
+          ? "サーバーの実行コンテキスト"
+          : /abort|timeout/i.test(error?.name || message)
+            ? "45秒タイムアウト"
+            : "通信エラー";
+    throw Object.assign(
+      problem(
+        `外部サービスへ接続できませんでした（${reason}）。管理者はデータ連携の接続テストを実行してください。`,
+      ),
+      { cause: error },
     );
   }
+  if (response.status >= 300 && response.status < 400)
+    throw problem(
+      "外部サービスから転送が返されたため停止しました。認証情報は転送先へ送信していません。",
+    );
   if (!response.ok)
     throw problem(
       `外部サービスがリクエストを拒否しました（HTTP ${response.status}）。権限・API有効化・利用上限を確認してください。`,

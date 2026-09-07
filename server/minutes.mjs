@@ -290,7 +290,7 @@ export function createMinuteService({
           "処理の完了後に更新してください。",
           409,
         );
-        const document = await readDocument(minute.sourceUrl);
+        const document = await readDocument(minute.sourceUrl, user);
         fail(store.user(user.id)?.active, "ログインし直してください。", 401);
         const fresh = store.get("salesMinutes", minute.id);
         fail(
@@ -346,7 +346,7 @@ export function createMinuteService({
       }
       return false;
     },
-    async document(body) {
+    async document(body, user) {
       if (!body.importGoogle) return null;
       const fileId = googleDocumentId(body.sourceUrl);
       fail(
@@ -361,7 +361,7 @@ export function createMinuteService({
         "登録済みのドキュメントです。議事録詳細の「Googleから更新」を使ってください。",
         409,
       );
-      return readDocument(body.sourceUrl);
+      return readDocument(body.sourceUrl, user);
     },
   };
 }

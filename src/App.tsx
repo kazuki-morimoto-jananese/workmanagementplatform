@@ -1717,6 +1717,19 @@ export default function App() {
                                       {t.comments.length}
                                     </span>
                                   )}
+                                  {t.visibility === "private" && (
+                                    <span
+                                      title="非公開：作成者・担当者・管理者"
+                                      aria-label="非公開タスク"
+                                    >
+                                      <LockKeyhole size={13} />
+                                    </span>
+                                  )}
+                                  {t.recurrence && (
+                                    <span className="pill neutral">
+                                      繰り返し
+                                    </span>
+                                  )}
                                 </div>
                                 <div>
                                   <span
@@ -2278,7 +2291,9 @@ export default function App() {
                 <div className="setting-row">
                   <div>
                     <strong>{data.workspace.name}</strong>
-                    <p>Worknest v2.7.0 · タスクと営業数字の共通ワークスペース</p>
+                    <p>
+                      Worknest v2.8.0 · タスクと営業数字の共通ワークスペース
+                    </p>
                   </div>
                   <span className="pill neutral">
                     <ShieldCheck size={13} />
@@ -2656,8 +2671,12 @@ function TaskDialog({
     | "dependencies"
     | "custom"
     | "links"
+    | "visibility"
+    | "recurrence"
   > = {
     title: "",
+    visibility: "workspace",
+    recurrence: null,
     description: "",
     status: "todo",
     priority: "medium",
@@ -2846,6 +2865,63 @@ function TaskDialog({
                 ))}
             </select>
           </label>
+          <label>
+            公開範囲
+            <select
+              aria-label="公開範囲"
+              value={draft.visibility || "workspace"}
+              disabled={
+                !!task &&
+                data.user.role !== "admin" &&
+                task.createdBy !== data.user.id
+              }
+              onChange={(e) => update("visibility", e.target.value)}
+            >
+              <option value="workspace">社内公開（メンバー全員）</option>
+              <option value="private">非公開（作成者・担当者・管理者）</option>
+            </select>
+          </label>
+          <label>
+            繰り返し
+            <select
+              aria-label="繰り返し"
+              value={draft.recurrence?.frequency || "none"}
+              onChange={(e) =>
+                update(
+                  "recurrence",
+                  e.target.value === "none"
+                    ? null
+                    : { frequency: e.target.value, interval: 1 },
+                )
+              }
+            >
+              <option value="none">繰り返さない</option>
+              <option value="daily">日次</option>
+              <option value="weekly">週次</option>
+              <option value="monthly">月次</option>
+            </select>
+          </label>
+          {draft.recurrence && (
+            <label>
+              繰り返し間隔
+              <input
+                aria-label="繰り返し間隔"
+                type="number"
+                min="1"
+                max="12"
+                value={draft.recurrence.interval}
+                onChange={(e) =>
+                  update("recurrence", {
+                    ...draft.recurrence,
+                    interval: Number(e.target.value),
+                  })
+                }
+              />
+              <small>
+                完了時に次回を作成します。月末日は短い月の末日に調整します。
+              </small>
+            </label>
+          )}
           <label>
             開始日
             <input

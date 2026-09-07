@@ -1,5 +1,7 @@
 # Worknest
 
+**v2.8: 繰り返し・非公開タスク、Gemini接続テスト、Google本人認証に対応しました。** [タスクの設定](docs/task-options.md)、[Googleドキュメント接続の初期設定](docs/google-user-connection.md)。
+
 **v2.7: 個人目標と担当者別の予実表、アグレッシブ確度を追加しました。** Excelの「今月ヨミ」は週次入力がない場合に自動表示します。[個人目標とヨミの使い方](docs/personal-targets.md)。
 
 **v2.6: Excel（.xlsx）の直接取り込みに対応しました。** 対象シート・見出し行を選択し、プレビュー後に更新できます。外部共有できないスプシはExcelを手動ダウンロードして利用できます。[Excel取り込み手順](docs/excel-import.md)。Cloudflareの永続SQLite・Google連携構成は[公開手順](docs/cloud-launch.md)を参照してください。

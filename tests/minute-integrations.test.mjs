@@ -70,7 +70,7 @@ test("Drive documents use fixed hosts, read-only scope and stable revisions", as
           c.url.startsWith("https://www.googleapis.com/drive/v3/files/"),
         ),
     );
-    assert.ok(calls.every((c) => c.init.redirect === "error"));
+    assert.ok(calls.every((c) => c.init.redirect === "manual"));
     await assert.rejects(
       readGoogleDocument(result.sourceUrl, {
         fetchImpl: async (url, init) =>

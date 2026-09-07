@@ -148,6 +148,8 @@ try {
   await modal
     .getByLabel("説明", { exact: true })
     .fill("永続化と操作の確認です。");
+  await modal.getByLabel("公開範囲", { exact: true }).selectOption("private");
+  await modal.getByLabel("繰り返し", { exact: true }).selectOption("weekly");
   await modal
     .getByRole("button", { name: "タスクを作成", exact: true })
     .click();
@@ -155,6 +157,14 @@ try {
   await page
     .getByRole("button", { name: "ブラウザーから作成したタスク", exact: true })
     .click();
+  assert.equal(
+    await modal.getByLabel("公開範囲", { exact: true }).inputValue(),
+    "private",
+  );
+  assert.equal(
+    await modal.getByLabel("繰り返し", { exact: true }).inputValue(),
+    "weekly",
+  );
   await modal
     .getByLabel("コメント", { exact: true })
     .fill("レビューをお願いします。");

@@ -1,5 +1,6 @@
 import { id, now, safeUser } from "./store.mjs";
 import { backupDatabase } from "../scripts/backup.mjs";
+import { canReadTask, redactTaskReferences } from "./task-options.mjs";
 const fail = (ok, message, status = 400) => {
   if (!ok) throw Object.assign(new Error(message), { status });
 };
@@ -201,11 +202,39 @@ export function createWorkspaceService({
           )
           .all(before, kind, kind, recordId, recordId);
         send(200, {
-          entries: rows.map((r) => ({
-            ...r,
-            before_data: r.before_data ? JSON.parse(r.before_data) : null,
-            after_data: r.after_data ? JSON.parse(r.after_data) : null,
-          })),
+          entries: rows
+            .filter((r) => {
+              if (r.kind !== "tasks")
+                return !["googleConnections", "googleOAuthStates"].includes(
+                  r.kind,
+                );
+              const current = store.get("tasks", r.record_id);
+              const last =
+                current ||
+                (() => {
+                  const last = store.db
+                    .prepare(
+                      "SELECT before_data,after_data FROM audit_log WHERE kind='tasks' AND record_id=? ORDER BY seq DESC LIMIT 1",
+                    )
+                    .get(r.record_id);
+                  return last
+                    ? JSON.parse(last.after_data || last.before_data || "null")
+                    : null;
+                })();
+              if (!canReadTask(last, user)) return false;
+              return [r.before_data, r.after_data]
+                .filter(Boolean)
+                .every((raw) => canReadTask(JSON.parse(raw), user));
+            })
+            .map((r) => ({
+              ...r,
+              before_data: r.before_data
+                ? redactTaskReferences(JSON.parse(r.before_data), user, store)
+                : null,
+              after_data: r.after_data
+                ? redactTaskReferences(JSON.parse(r.after_data), user, store)
+                : null,
+            })),
           next: rows.length === 100 ? rows.at(-1).seq : null,
         });
         return true;

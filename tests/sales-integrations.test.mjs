@@ -9,7 +9,28 @@ import {
   summarizeMinutes,
   validateSummary,
   integrationStatus,
+  jsonRequest,
 } from "../server/sales-integrations.mjs";
+
+test("external redirects never forward credentials and Cloudflare-compatible mode is used", async () => {
+  let calls = 0;
+  await assert.rejects(
+    jsonRequest(
+      "https://generativelanguage.googleapis.com/test",
+      {},
+      async (url, init) => {
+        calls++;
+        assert.equal(init.redirect, "manual");
+        return new Response("", {
+          status: 302,
+          headers: { Location: "https://untrusted.example" },
+        });
+      },
+    ),
+    /転送/,
+  );
+  assert.equal(calls, 1);
+});
 
 test("Google Sheets reads private source via readonly token and fixed hosts", async () => {
   const dir = mkdtempSync(join(tmpdir(), "worknest-google-test-"));

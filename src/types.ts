@@ -37,6 +37,13 @@ export type Project = {
   ownerId: string;
 };
 export type Task = {
+  visibility?: "workspace" | "private";
+  createdBy?: string;
+  recurrence?: {
+    frequency: "daily" | "weekly" | "monthly";
+    interval: number;
+  } | null;
+  recurrenceNextId?: string;
   assigneeIds?: string[];
   accountId?: string;
   minuteId?: string;
