@@ -85,6 +85,30 @@ export async function runWorkspaceBrowserChecks(page) {
     await context.close();
   }
   await page.reload();
+  await page.getByRole("button", { name: "メンバー", exact: true }).click();
+  await page
+    .getByLabel(`${other.name}さんの権限`, { exact: true })
+    .selectOption("admin");
+  await expect(
+    page.getByLabel(`${other.name}さんの権限`, { exact: true }),
+  ).toHaveValue("admin");
+  await expect(
+    page.getByLabel(`${other.name}さんの権限`, { exact: true }),
+  ).toBeEnabled();
+  assert.equal(
+    (await request("/bootstrap")).members.find((m) => m.id === other.id).role,
+    "admin",
+  );
+  await page
+    .getByLabel(`${other.name}さんの権限`, { exact: true })
+    .selectOption("member");
+  await expect(
+    page.getByLabel(`${other.name}さんの権限`, { exact: true }),
+  ).toBeEnabled();
+  assert.equal(
+    (await request("/bootstrap")).members.find((m) => m.id === other.id).role,
+    "member",
+  );
   await page.getByRole("button", { name: "プロジェクト", exact: true }).click();
   await page
     .getByLabel("表示するプロジェクト", { exact: true })
@@ -154,6 +178,25 @@ export async function runWorkspaceBrowserChecks(page) {
     fullPage: true,
   });
   await page.setViewportSize({ width: 1440, height: 1050 });
+  await page
+    .getByRole("button", { name: "営業・数字管理", exact: true })
+    .click();
+  await page.getByRole("button", { name: "データ連携", exact: true }).click();
+  await page
+    .getByLabel("スプレッドシートID", { exact: true })
+    .fill("companySheetTest123456");
+  await page.getByLabel("毎日の同期時刻", { exact: true }).fill("09:30");
+  await page
+    .getByRole("button", { name: "接続設定を保存", exact: true })
+    .click();
+  await page.getByText("接続設定を保存しました", { exact: true }).waitFor();
+  assert.equal(
+    (await request("/sales/bootstrap")).connections.source.syncTime,
+    "09:30",
+  );
+  await expect(
+    page.getByRole("button", { name: "保存済み接続をプレビュー", exact: true }),
+  ).toBeDisabled();
   console.log(
     "Workspace browser passed: organization master, self department, cross-department projects, multiple task owners, account linkage, audit and backup.",
   );

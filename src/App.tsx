@@ -499,6 +499,7 @@ export default function App() {
   const [newProject, setNewProject] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [memberModal, setMemberModal] = useState(false);
+  const [memberRoleBusy, setMemberRoleBusy] = useState("");
   const [passwordModal, setPasswordModal] = useState(false);
   const [toast, setToast] = useState("");
   const [mobile, setMobile] = useState(false);
@@ -2132,7 +2133,31 @@ export default function App() {
                       </span>
                     </div>
                     <span>
-                      {m.role === "admin" ? (
+                      {data.user.role === "admin" && m.id !== data.user.id ? (
+                        <select
+                          aria-label={`${m.name}さんの権限`}
+                          value={m.role}
+                          disabled={memberRoleBusy === m.id}
+                          onChange={async (e) => {
+                            const role = e.target.value;
+                            setMemberRoleBusy(m.id);
+                            try {
+                              await mutate(
+                                `/members/${m.id}`,
+                                "PATCH",
+                                { role },
+                                `${m.name}さんの権限を変更しました`,
+                              );
+                            } catch {
+                            } finally {
+                              setMemberRoleBusy("");
+                            }
+                          }}
+                        >
+                          <option value="member">メンバー</option>
+                          <option value="admin">管理者</option>
+                        </select>
+                      ) : m.role === "admin" ? (
                         <>
                           <ShieldCheck size={14} />
                           管理者
@@ -2169,6 +2194,9 @@ export default function App() {
               <p className="subtle-note">
                 <LockKeyhole size={14} />
                 アカウントは管理者だけが発行できます。全メンバーがワークスペース内のプロジェクトを共有します。
+              </p>
+              <p className="subtle-note">
+                管理者はメンバー発行・組織登録・スプシ接続・全社監査を操作できます。タスクの承認担当は、管理者権限がなくても指定できます。
               </p>
             </>
           )}
@@ -2250,7 +2278,7 @@ export default function App() {
                 <div className="setting-row">
                   <div>
                     <strong>{data.workspace.name}</strong>
-                    <p>Worknest v2.3 · タスクと営業数字の共通ワークスペース</p>
+                    <p>Worknest v2.4 · タスクと営業数字の共通ワークスペース</p>
                   </div>
                   <span className="pill neutral">
                     <ShieldCheck size={13} />

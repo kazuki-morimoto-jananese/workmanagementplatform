@@ -358,8 +358,7 @@ test("long-term audit, organization, multiple owners and document revisions pres
       },
     });
     const calls = extractionCalls;
-    await new Promise((r) => app.server.close(r));
-    app.store.db.close();
+    await app.close();
     app = createApp({ dataDir: directory, minuteAdapters: adapters });
     await start();
     await waitFor(
@@ -417,8 +416,7 @@ test("long-term audit, organization, multiple owners and document revisions pres
       /空のフォルダー/,
     );
   } finally {
-    await new Promise((r) => app.server.close(r));
-    app.store.db.close();
+    await app.close();
     rmSync(directory, { recursive: true, force: true });
     if (priorKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = priorKey;

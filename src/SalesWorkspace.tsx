@@ -449,6 +449,10 @@ export default function SalesWorkspace({
     [busy, setBusy] = useState(false),
     [seedReviews, setSeedReviews] = useState(false);
   const admin = data.user.role === "admin";
+  const [connectionPreview, setConnectionPreview] = useState<
+    | (ImportPreview & { sourceName: string; range: string; checkedAt: string })
+    | null
+  >(null);
   const activePeriod = useRef("");
   activePeriod.current = `${month}/${week}`;
   const hasDemo = sales.accounts.some((a) => a.isDemo);
@@ -1642,7 +1646,7 @@ export default function SalesWorkspace({
                     </span>
                   </div>
                   <p>
-                    非公開スプレッドシートを読み取り専用で取得。毎日06:00（日本時間）に、サーバー稼働中に実行します。
+                    非公開スプレッドシートを読み取り専用で取得します。スプシの更新完了後になるよう毎日の同期時刻を設定してください。サーバー稼働中に実行し、入力済みのヨミは保持します。
                   </p>
                   <SalesForm
                     key={sales.connections.source?.spreadsheetId || "source"}
@@ -1673,6 +1677,7 @@ export default function SalesWorkspace({
                         },
                         "接続設定を保存しました",
                       );
+                      setConnectionPreview(null);
                     }}
                   >
                     <label>
@@ -1717,6 +1722,18 @@ export default function SalesWorkspace({
                         required
                       />
                     </label>
+                    <label>
+                      毎日の同期時刻（日本時間）
+                      <input
+                        aria-label="毎日の同期時刻"
+                        name="syncTime"
+                        type="time"
+                        required
+                        defaultValue={
+                          sales.connections.source?.syncTime || "06:00"
+                        }
+                      />
+                    </label>
                     <label className="check-label">
                       <input
                         type="checkbox"
@@ -1738,6 +1755,58 @@ export default function SalesWorkspace({
                       日次同期を有効にする
                     </label>
                   </SalesForm>
+                  <button
+                    className="button"
+                    disabled={
+                      !admin ||
+                      busy ||
+                      !sales.connections.sheetsConfigured ||
+                      !sales.connections.source
+                    }
+                    onClick={() =>
+                      action(async () => {
+                        setConnectionPreview(
+                          await api("/sales/connections/preview", "POST", {}),
+                        );
+                      })
+                    }
+                  >
+                    保存済み接続をプレビュー
+                  </button>
+                  {connectionPreview && (
+                    <div className="info-box connection-preview">
+                      <div>
+                        <strong>
+                          {connectionPreview.sourceName} ·{" "}
+                          {connectionPreview.range} · {connectionPreview.count}
+                          件
+                        </strong>
+                        <p>確認のみで、業務データはまだ更新していません。</p>
+                        {connectionPreview.errors.map((e, i) => (
+                          <p className="form-error" key={i}>
+                            {e}
+                          </p>
+                        ))}
+                        {connectionPreview.warnings.map((w, i) => (
+                          <p key={i}>{w}</p>
+                        ))}
+                        <ul>
+                          {connectionPreview.rows.slice(0, 5).map((r) => (
+                            <li key={r.accountId}>
+                              {r.accountId} / {r.name} / Gトレ{" "}
+                              {r.gTrend == null
+                                ? "未入力"
+                                : Number(r.gTrend).toLocaleString("ja-JP") +
+                                  "円"}
+                            </li>
+                          ))}
+                        </ul>
+                        <p>
+                          先頭5件を表示。列が合わない場合は、取込プレビューで列対応を確認し、接続設定へ適用してください。
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="sales-sync-state">
                     <span>最終成功</span>
                     <strong>
@@ -1747,6 +1816,13 @@ export default function SalesWorkspace({
                           ).toLocaleString("ja-JP")
                         : "未実行"}
                     </strong>
+                    <span>
+                      日次同期：
+                      {sales.connections.source?.enabled
+                        ? `毎日 ${sales.connections.source.syncTime || "06:00"}（日本時間）`
+                        : "無効"}
+                      。手動同期は日次実行とは別に利用できます。
+                    </span>
                     {sales.connections.source?.lastError && (
                       <p className="form-error">
                         {sales.connections.source.lastError}

@@ -491,8 +491,7 @@ test("sales workflows preserve manual forecasts, history, raw metrics and task l
       },
     );
   } finally {
-    await new Promise((r) => app.server.close(r));
-    app.store.db.close();
+    await app.close();
     rmSync(directory, { recursive: true, force: true });
     if (oldKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = oldKey;

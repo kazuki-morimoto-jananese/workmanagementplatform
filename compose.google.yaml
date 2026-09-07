@@ -6,5 +6,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       GEMINI_AUTO_SUMMARY: ${GEMINI_AUTO_SUMMARY:-false}
+      GEMINI_DAILY_EXTRACTIONS: ${GEMINI_DAILY_EXTRACTIONS:-20}
+      GEMINI_DAILY_SUMMARIES: ${GEMINI_DAILY_SUMMARIES:-20}
     volumes:
       - ./.secrets:/run/worknest-secrets:ro

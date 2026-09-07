@@ -54,6 +54,9 @@ export function OrganizationPanel({
     <section className="panel settings-section organization-panel">
       <h2>組織と所属</h2>
       <p>
+        同じ部署のチームを増やすときは、親組織に同じ部署を選んでチーム名を登録します。その後「自分の所属」で所属先を選びます。
+      </p>
+      <p>
         会社 → 事業部 → 部署 →
         チーム。登録した共通名を、メンバー・プロジェクト・営業アカウントで使います。
       </p>

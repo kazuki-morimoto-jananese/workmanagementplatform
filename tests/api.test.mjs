@@ -163,6 +163,24 @@ test("authentication, authorization, persistence and collaborative workflows", a
           .status,
         400,
       );
+      assert.equal(
+        (await request(`/members/${employee.id}`, "PATCH", { role: "admin" }))
+          .status,
+        200,
+      );
+      assert.equal(
+        (await request("/operations", "GET", undefined, employeeCookie)).status,
+        200,
+      );
+      assert.equal(
+        (await request(`/members/${employee.id}`, "PATCH", { role: "member" }))
+          .status,
+        200,
+      );
+      assert.equal(
+        (await request("/operations", "GET", undefined, employeeCookie)).status,
+        403,
+      );
     });
     await t.test(
       "projects, multi-home, custom fields and automation",
@@ -362,8 +380,7 @@ test("authentication, authorization, persistence and collaborative workflows", a
       },
     );
     await t.test("database and session survive a server restart", async () => {
-      await new Promise((resolve) => app.server.close(resolve));
-      app.store.db.close();
+      await app.close();
       app = createApp({
         dataDir: directory,
         production: false,
@@ -398,8 +415,7 @@ test("authentication, authorization, persistence and collaborative workflows", a
       assert.equal((await request("/bootstrap")).status, 401);
     });
   } finally {
-    await new Promise((resolve) => app.server.close(resolve));
-    app.store.db.close();
+    await app.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -425,8 +441,7 @@ test("production setup requires a configured secret token", async () => {
     );
     assert.equal(response.status, 403);
   } finally {
-    await new Promise((resolve) => app.server.close(resolve));
-    app.store.db.close();
+    await app.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

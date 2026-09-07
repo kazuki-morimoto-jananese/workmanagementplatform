@@ -332,6 +332,7 @@ export function createApp(options = {}) {
     saveTask,
     activity,
     minuteAdapters: options.minuteAdapters,
+    sheetReader: options.sheetReader,
   });
   const workspaceService = createWorkspaceService({
     store,
@@ -991,23 +992,29 @@ export function createApp(options = {}) {
     sales.stop();
     workspaceService.stop();
   });
-  return { server, store };
+  let closing;
+  const close = () =>
+    (closing ??= (async () => {
+      sales.stop();
+      workspaceService.stop();
+      await new Promise((resolve) => server.close(resolve));
+      await workspaceService.waitForBackup();
+      store.db.close();
+    })());
+  return { server, store, close };
 }
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  const { server, store } = createApp();
+  const { server, close } = createApp();
   const port = Number(process.env.PORT || 3000),
     host = process.env.HOST || "127.0.0.1";
   server.listen(port, host, () =>
     console.log(`Worknest is ready: http://${host}:${port}`),
   );
   for (const signal of ["SIGINT", "SIGTERM"])
-    process.on(signal, () =>
-      server.close(() => {
-        store.db.close();
-        process.exit();
-      }),
-    );
+    process.on(signal, () => {
+      void close().then(() => process.exit());
+    });
 }

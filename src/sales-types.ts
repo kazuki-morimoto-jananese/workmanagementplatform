@@ -125,6 +125,8 @@ export type SalesMinute = {
   version: number;
 };
 export type SalesSource = {
+  syncTime?: string;
+  lastScheduledAttemptAt?: string;
   name: string;
   spreadsheetId: string;
   range: string;

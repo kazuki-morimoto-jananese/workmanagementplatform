@@ -10,7 +10,7 @@ import { runSalesDemoBrowserChecks } from "./tests/sales-demo-browser.mjs";
 import { runWorkspaceBrowserChecks } from "./tests/workspace-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
-const { server, store } = createApp({
+const { server, store, close } = createApp({
   dataDir: directory,
   production: false,
   allowedDomain: "",
@@ -255,7 +255,6 @@ try {
   );
 } finally {
   await browser?.close();
-  await new Promise((resolve) => server.close(resolve));
-  store.db.close();
+  await close();
   rmSync(directory, { recursive: true, force: true });
 }

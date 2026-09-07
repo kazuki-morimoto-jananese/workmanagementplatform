@@ -109,8 +109,7 @@ test("Japanese JSON input is preserved when network chunks split inside a UTF-8 
     );
     assert.deepEqual(await health.json(), { status: "ok" });
   } finally {
-    await new Promise((r) => app.server.close(r));
-    app.store.db.close();
+    await app.close();
     rmSync(directory, { recursive: true, force: true });
   }
 });

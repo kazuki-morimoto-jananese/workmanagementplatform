@@ -23,7 +23,8 @@ API（以下すべて`/sales`接頭辞）:
 - POST `/accounts/:id/tasks`: `{title,projectId,assigneeId,dueDate?,description?}`。営業accountIdを既存taskに付け、saveTaskでtask本体作成。task.accountId/minuteIdの保持はroot対応。
 - POST `/imports/preview`: `{text,month,sourceName?,mapping?}` -> `{headers,mapping,rows:[{accountId,name,...}],errors:[string],warnings:[string],count}`。TSV/CSV引用符付き複数行対応。全体validate、id重複や数値不正を警告/拒否。
 - POST `/imports/commit`: `{text,month,sourceName?,mapping?,seedReviews?:boolean}` -> `{created,updated,skipped,warnings,importId}`。管理者のみ。manual preview内容で再解析。masterとアカウントのみ更新、手入力reviewsを上書きしない。seedReviews trueは未入力の当週レビューだけ初回補完。
-- POST `/connections`: `{spreadsheetId,range,name,month,rollingMonth,enabled,mapping}` admin only。接続1件を保存。month固定orrollingMonthはJST当月。enabledで日次06:00 JST同期。明示初回手動同期可。
+- POST `/connections`: `{spreadsheetId,range,name,month,rollingMonth,enabled,syncTime,mapping}` admin only。接続1件を保存。month固定orrollingMonthはJST当月。enabledで日次同期。syncTimeはJSTのHH:mm、既定06:00。lastScheduledAttemptAtを手動同期のlastAttemptAtと分けて保持。
+- POST `/connections/preview`: admin only。保存済み接続を読み取り専用で取得・解析し、取込プレビューとsourceName・range・checkedAtを返す。業務データの更新や同期試行の記録はしない。
 - POST `/connections/sync`: admin only 手動同期。read-only Sheets API、失敗時DBを変更せず記録。
 - GET `/export?month&weekOf`: CSV textダウンロード（サーバーheaders注入等避け安全に、またはJSONでcsv返す）。UI api helperがJSONを期待するため `{csv,filename}` を返す。
 - POST `/demo`: admin only、当月±1か月の架空データを6アカウントへ追加。既存の実データとデモの編集を保持。`{periods,created,totalCreated,accounts}` を返す。CSV `/export` は `scope=real|demo`、省略時real。

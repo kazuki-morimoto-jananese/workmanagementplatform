@@ -27,9 +27,14 @@ export function createWorkspaceService({ store, dataDir }) {
   let backingUp = false,
     timer,
     stopped = false;
+  let backupSettled = Promise.resolve();
   async function runBackup(userId = "system") {
     fail(!backingUp, "バックアップを実行中です。", 409);
     backingUp = true;
+    let settle;
+    backupSettled = new Promise((resolve) => {
+      settle = resolve;
+    });
     try {
       const result = await backupDatabase({ dataDir });
       const value = {
@@ -58,6 +63,7 @@ export function createWorkspaceService({ store, dataDir }) {
       );
     } finally {
       backingUp = false;
+      settle();
     }
   }
   function tick() {
@@ -73,6 +79,7 @@ export function createWorkspaceService({ store, dataDir }) {
       void runBackup().catch(() => {});
   }
   return {
+    waitForBackup: () => backupSettled,
     start() {
       timer = setInterval(tick, 60000);
       timer.unref();

@@ -2,6 +2,7 @@ import { id, now, auditContext } from "./store.mjs";
 import { seedSalesDemo, demoPeriods } from "./sales-demo.mjs";
 import { createMinuteService } from "./minutes.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
+import { syncTime, scheduledSyncDue } from "./sales-schedule.mjs";
 import { buildPreview, emptyMedia, numeric, csvCell } from "./sales-import.mjs";
 import {
   integrationStatus,
@@ -70,6 +71,7 @@ export function createSalesService({
   saveTask,
   activity,
   minuteAdapters = {},
+  sheetReader = readGoogleSheet,
 }) {
   let timer = null,
     stopped = false,
@@ -418,7 +420,7 @@ export function createSalesService({
     enqueueSummary: enqueue,
     ...minuteAdapters,
   });
-  async function sync(user) {
+  async function sync(user, scheduled = false) {
     check(!syncing, "同期処理が実行中です。", 409);
     const source = store.get("salesSettings", "source");
     check(source, "接続先を設定してください。");
@@ -427,10 +429,11 @@ export function createSalesService({
     store.put("salesSettings", {
       ...source,
       lastAttemptAt: attempt,
+      ...(scheduled ? { lastScheduledAttemptAt: attempt } : {}),
       lastError: "",
     });
     try {
-      const { values } = await readGoogleSheet(source);
+      const { values } = await sheetReader(source);
       check(!stopped, "サーバー停止中です。", 503);
       const currentUser = store.user(user.id);
       check(
@@ -482,21 +485,9 @@ export function createSalesService({
   function tick() {
     const source = store.get("salesSettings", "source");
     if (!source?.enabled || syncing || stopped) return;
-    const hour = Number(
-      new Intl.DateTimeFormat("en-US", {
-        timeZone: "Asia/Tokyo",
-        hour: "2-digit",
-        hourCycle: "h23",
-      }).format(new Date()),
-    );
-    const lastDay = source.lastAttemptAt
-      ? new Date(source.lastAttemptAt).toLocaleDateString("sv-SE", {
-          timeZone: "Asia/Tokyo",
-        })
-      : "";
-    if (hour >= 6 && lastDay !== jstToday()) {
+    if (scheduledSyncDue(source)) {
       const admin = store.users().find((u) => u.active && u.role === "admin");
-      if (admin) void sync(admin).catch(() => {});
+      if (admin) void sync(admin, true).catch(() => {});
     }
   }
   async function handle({ path, method, body, user, send, url }) {
@@ -813,6 +804,7 @@ export function createSalesService({
         month: monthValue(body.month),
         rollingMonth: body.rollingMonth === true,
         enabled: body.enabled === true,
+        syncTime: syncTime(body.syncTime ?? previous?.syncTime ?? "06:00"),
         mapping:
           body.mapping &&
           typeof body.mapping === "object" &&
@@ -820,11 +812,35 @@ export function createSalesService({
             ? body.mapping
             : {},
         lastAttemptAt: sameSource ? previous?.lastAttemptAt || "" : "",
+        lastScheduledAttemptAt: sameSource
+          ? previous?.lastScheduledAttemptAt || ""
+          : "",
         lastSuccessAt: sameSource ? previous?.lastSuccessAt || "" : "",
         lastError: sameSource ? previous?.lastError || "" : "",
       };
       store.put("salesSettings", item);
       return reply(200, item);
+    }
+    if (p === "/sales/connections/preview" && method === "POST") {
+      admin();
+      const source = store.get("salesSettings", "source");
+      check(source, "先に接続設定を保存してください。");
+      const { values } = await sheetReader(source);
+      check(
+        store.user(user.id)?.active && store.user(user.id)?.role === "admin",
+        "有効な管理者による操作が必要です。",
+        403,
+      );
+      return reply(200, {
+        ...buildPreview({
+          values,
+          month: source.rollingMonth ? jstToday().slice(0, 7) : source.month,
+          mapping: source.mapping,
+        }),
+        sourceName: source.name,
+        range: source.range,
+        checkedAt: now(),
+      });
     }
     if (p === "/sales/connections/sync" && method === "POST") {
       admin();
