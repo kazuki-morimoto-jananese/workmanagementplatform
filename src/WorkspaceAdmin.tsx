@@ -333,10 +333,13 @@ export function OperationsPanel({
     <section className="panel settings-section">
       <h2>保存・バックアップ・監査</h2>
       <p>
-        履歴は自動削除しません。サーバー稼働中に24時間ごとにバックアップします。
+        {status?.storage?.description ||
+          "履歴は自動削除しません。サーバー稼働中に24時間ごとにバックアップします。"}
       </p>
       <p>
-        最終バックアップ：
+        {status?.storage?.kind === "cloudflare"
+          ? "最終復元ポイント："
+          : "最終バックアップ："}
         {status?.backup?.lastSuccessAt
           ? new Date(status.backup.lastSuccessAt).toLocaleString("ja-JP")
           : "未実行"}{" "}
@@ -361,11 +364,48 @@ export function OperationsPanel({
           }
         }}
       >
-        {busy ? "保存中…" : "今すぐバックアップ"}
+        {busy
+          ? "保存中…"
+          : status?.storage?.kind === "cloudflare"
+            ? "復元ポイントを記録"
+            : "今すぐバックアップ"}
       </button>
       <p className="sales-muted">
-        保存先はサーバーのdata/backupsです。障害対策として別ストレージへの複製も運用してください。
+        {status?.storage?.kind === "cloudflare"
+          ? "復元ポイントはクラウド側の一定期間の復旧用です。長期保管用に全データを書き出せます。書き出しにはメンバーの認証用ハッシュを含むため、管理者が保管してください。"
+          : "保存先はサーバーのdata/backupsです。障害対策として別ストレージへの複製も運用してください。"}
       </p>
+      <button
+        className="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setError("");
+          try {
+            const snapshot = await request(
+              "/operations/export-data",
+              "POST",
+              {},
+            );
+            const href = URL.createObjectURL(
+              new Blob([JSON.stringify(snapshot)], {
+                type: "application/json",
+              }),
+            );
+            const link = document.createElement("a");
+            link.href = href;
+            link.download = `worknest-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            link.click();
+            URL.revokeObjectURL(href);
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        全データを書き出す
+      </button>
       <details onToggle={(e) => setShowAudit(e.currentTarget.open)}>
         <summary>全社の監査履歴を開く</summary>
         {showAudit && <AuditHistory request={request} members={members} />}

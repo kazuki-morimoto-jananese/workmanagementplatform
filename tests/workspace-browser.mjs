@@ -52,7 +52,10 @@ export async function runWorkspaceBrowserChecks(page) {
   const context = await page
     .context()
     .browser()
-    .newContext({ extraHTTPHeaders: { "X-Worknest": "1" } });
+    .newContext({
+      extraHTTPHeaders: { "X-Worknest": "1" },
+      ignoreHTTPSErrors: page.url().startsWith("https://127.0.0.1:"),
+    });
   let project;
   try {
     const base = new URL(page.url()).origin;
@@ -158,14 +161,16 @@ export async function runWorkspaceBrowserChecks(page) {
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "設定・連携", exact: true }).click();
   await page
-    .getByRole("button", { name: "今すぐバックアップ", exact: true })
+    .getByRole("button", { name: /^(今すぐバックアップ|復元ポイントを記録)$/ })
     .click();
   await expect(
-    page.getByRole("button", { name: "今すぐバックアップ", exact: true }),
+    page.getByRole("button", {
+      name: /^(今すぐバックアップ|復元ポイントを記録)$/,
+    }),
   ).toBeEnabled();
-  await expect(page.getByText(/最終バックアップ：/)).not.toContainText(
-    "未実行",
-  );
+  await expect(
+    page.getByText(/最終(バックアップ|復元ポイント)：/),
+  ).not.toContainText("未実行");
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
     await page.evaluate(

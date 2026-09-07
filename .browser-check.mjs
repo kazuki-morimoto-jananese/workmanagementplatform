@@ -2,7 +2,7 @@ import { chromium } from "@playwright/test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createApp } from "./server/index.mjs";
 import { runSalesBrowserChecks } from "./tests/sales-browser.mjs";
 import { runTaskUxBrowserChecks } from "./tests/task-ux-browser.mjs";
@@ -10,16 +10,54 @@ import { runSalesDemoBrowserChecks } from "./tests/sales-demo-browser.mjs";
 import { runWorkspaceBrowserChecks } from "./tests/workspace-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
-const { server, store, close } = createApp({
-  dataDir: directory,
-  production: false,
-  allowedDomain: "",
-});
+const cloud = process.argv.includes("--cloud");
+let close = async () => {};
+let restartCloud;
 let browser;
 const errors = [];
 try {
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
+  let base;
+  if (cloud) {
+    process.env.WRANGLER_SEND_METRICS = "false";
+    process.env.WRANGLER_LOG_PATH = resolve("artifacts/cloud-browser/logs");
+    const { unstable_dev } = await import("wrangler");
+    const cloudOptions = {
+      config: "wrangler.jsonc",
+      local: true,
+      ip: "127.0.0.1",
+      port: 0,
+      localProtocol: "https",
+      persist: true,
+      persistTo: directory,
+      logLevel: "error",
+      vars: {
+        SETUP_TOKEN: "browser-only-cloud-token",
+        ALLOWED_EMAIL_DOMAIN: "",
+      },
+      experimental: {
+        disableExperimentalWarning: true,
+        watch: false,
+        showInteractiveDevSession: false,
+      },
+    };
+    let worker = await unstable_dev("server/cloudflare.mjs", cloudOptions);
+    cloudOptions.port = worker.port;
+    close = () => worker.stop();
+    restartCloud = async () => {
+      await worker.stop();
+      worker = await unstable_dev("server/cloudflare.mjs", cloudOptions);
+    };
+    base = `https://127.0.0.1:${worker.port}`;
+  } else {
+    const app = createApp({
+      dataDir: directory,
+      production: false,
+      allowedDomain: "",
+    });
+    close = app.close;
+    await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
+    base = `http://127.0.0.1:${app.server.address().port}`;
+  }
   const localChrome =
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
   browser = await chromium.launch({
@@ -31,6 +69,7 @@ try {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1050 },
     reducedMotion: "reduce",
+    ignoreHTTPSErrors: cloud,
   });
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(base);
@@ -51,6 +90,10 @@ try {
   await page
     .getByLabel("パスワード（確認）", { exact: true })
     .fill("Browser-test-password!");
+  if (cloud)
+    await page
+      .locator('input[name="setupToken"]')
+      .fill("browser-only-cloud-token");
   await page
     .getByRole("button", { name: "ワークスペースを作成", exact: true })
     .click();
@@ -249,6 +292,25 @@ try {
   await page
     .getByRole("heading", { name: /おかえりなさい、田中さん/ })
     .waitFor();
+  if (restartCloud) {
+    const before = await page.evaluate(async () =>
+      (await fetch("/api/bootstrap")).json(),
+    );
+    await restartCloud();
+    await page.reload();
+    await page
+      .getByRole("heading", { name: /おかえりなさい、田中さん/ })
+      .waitFor();
+    const after = await page.evaluate(async () =>
+      (await fetch("/api/bootstrap")).json(),
+    );
+    assert.deepEqual(after.tasks, before.tasks);
+    assert.deepEqual(after.projects, before.projects);
+    assert.equal(after.user.id, before.user.id);
+    console.log(
+      "Cloudflare restart passed: users, session, tasks and projects persist.",
+    );
+  }
   assert.deepEqual(errors, [], "No uncaught browser errors");
   console.log(
     "Browser checks passed: setup, login, dashboard, board drag, timeline, task creation, comments, approvals, custom fields, request form, members, mobile, persistence, logout and first password change.",

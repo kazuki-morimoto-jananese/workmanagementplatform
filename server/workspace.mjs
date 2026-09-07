@@ -23,7 +23,12 @@ export function orgPath(store, uid) {
     names.unshift(unit.name);
   return names.join(" / ");
 }
-export function createWorkspaceService({ store, dataDir }) {
+export function createWorkspaceService({
+  store,
+  dataDir,
+  backupProvider = backupDatabase,
+  storageInfo = null,
+}) {
   let backingUp = false,
     timer,
     stopped = false;
@@ -36,13 +41,16 @@ export function createWorkspaceService({ store, dataDir }) {
       settle = resolve;
     });
     try {
-      const result = await backupDatabase({ dataDir });
+      const result = await backupProvider({ dataDir });
       const value = {
         id: "backup",
         lastSuccessAt: now(),
         bytes: result.bytes,
         lastError: "",
         requestedBy: userId,
+        ...(result.recoveryPoint
+          ? { recoveryPoint: result.recoveryPoint }
+          : {}),
       };
       if (!stopped) store.put("operations", value);
       return value;
@@ -76,14 +84,17 @@ export function createWorkspaceService({ store, dataDir }) {
       store.users().length &&
       (!stamp || Date.now() - Date.parse(stamp) >= 86400000)
     )
-      void runBackup().catch(() => {});
+      return runBackup().catch(() => {});
   }
   return {
     waitForBackup: () => backupSettled,
-    start() {
-      timer = setInterval(tick, 60000);
-      timer.unref();
-      tick();
+    tick,
+    start({ timers = true } = {}) {
+      if (timers) {
+        timer = setInterval(tick, 60000);
+        timer.unref();
+        void tick();
+      }
     },
     stop() {
       stopped = true;
@@ -208,12 +219,27 @@ export function createWorkspaceService({ store, dataDir }) {
             .get().count,
           retention: "自動削除なし",
           backingUp,
+          storage: storageInfo,
         });
         return true;
       }
       if (path === "/api/operations/backup" && method === "POST") {
         admin();
         send(201, await runBackup(user.id));
+        return true;
+      }
+      if (path === "/api/operations/export-data" && method === "POST") {
+        admin();
+        const snapshot = store.transaction(() => ({
+          format: "worknest-export-v1",
+          exportedAt: now(),
+          users: store.db.prepare("SELECT * FROM users ORDER BY id").all(),
+          records: store.db
+            .prepare("SELECT * FROM records ORDER BY kind,id")
+            .all(),
+          audit: store.db.prepare("SELECT * FROM audit_log ORDER BY seq").all(),
+        }));
+        send(200, snapshot);
         return true;
       }
       return false;

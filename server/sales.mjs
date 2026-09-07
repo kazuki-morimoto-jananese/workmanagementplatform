@@ -72,6 +72,9 @@ export function createSalesService({
   activity,
   minuteAdapters = {},
   sheetReader = readGoogleSheet,
+  background = (promise) => {
+    void promise;
+  },
 }) {
   let timer = null,
     stopped = false,
@@ -411,13 +414,14 @@ export function createSalesService({
     };
     store.put("salesMinutes", item);
     queue.push(item.id);
-    void auditContext.run({ actorId: "system" }, () => drain());
+    background(auditContext.run({ actorId: "system" }, () => drain()));
     return item;
   }
   const minuteService = createMinuteService({
     store,
     saveReview,
     enqueueSummary: enqueue,
+    background,
     ...minuteAdapters,
   });
   async function sync(user, scheduled = false) {
@@ -487,7 +491,7 @@ export function createSalesService({
     if (!source?.enabled || syncing || stopped) return;
     if (scheduledSyncDue(source)) {
       const admin = store.users().find((u) => u.active && u.role === "admin");
-      if (admin) void sync(admin, true).catch(() => {});
+      if (admin) return sync(admin, true).catch(() => {});
     }
   }
   async function handle({ path, method, body, user, send, url }) {
@@ -940,7 +944,8 @@ export function createSalesService({
   return {
     handle,
     commitImport,
-    start() {
+    tick,
+    start({ timers = true } = {}) {
       if (timer) return;
       stopped = false;
       minuteService.start();
@@ -949,10 +954,12 @@ export function createSalesService({
           store.put("salesMinutes", { ...m, status: "pending" });
           queue.push(m.id);
         }
-      void auditContext.run({ actorId: "system" }, () => drain());
-      timer = setInterval(tick, 60000);
-      timer.unref();
-      tick();
+      background(auditContext.run({ actorId: "system" }, () => drain()));
+      if (timers) {
+        timer = setInterval(tick, 60000);
+        timer.unref();
+        void tick();
+      }
     },
     stop() {
       stopped = true;

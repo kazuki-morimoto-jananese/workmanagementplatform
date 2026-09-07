@@ -1,15 +1,39 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createSign } from "node:crypto";
 
 const problem = (message) => Object.assign(new Error(message), { status: 503 });
+export function googleCredentials() {
+  let credentials;
+  try {
+    const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
+    credentials = JSON.parse(
+      raw || readFileSync(process.env.GOOGLE_SERVICE_ACCOUNT_FILE, "utf8"),
+    );
+  } catch {
+    throw problem(
+      "Googleの資格情報が未設定、または読み込めません。サービスアカウントJSONの設定を確認してください。",
+    );
+  }
+  if (
+    !credentials ||
+    typeof credentials.client_email !== "string" ||
+    !credentials.client_email ||
+    typeof credentials.private_key !== "string" ||
+    !credentials.private_key ||
+    credentials.type !== "service_account"
+  )
+    throw problem("サービスアカウント形式の資格情報が必要です。");
+  return credentials;
+}
 export function integrationStatus() {
+  let googleConfigured = false;
+  try {
+    googleCredentials();
+    googleConfigured = true;
+  } catch {}
   return {
-    driveConfigured:
-      !!process.env.GOOGLE_SERVICE_ACCOUNT_FILE &&
-      existsSync(process.env.GOOGLE_SERVICE_ACCOUNT_FILE),
-    sheetsConfigured:
-      !!process.env.GOOGLE_SERVICE_ACCOUNT_FILE &&
-      existsSync(process.env.GOOGLE_SERVICE_ACCOUNT_FILE),
+    driveConfigured: googleConfigured,
+    sheetsConfigured: googleConfigured,
     geminiConfigured:
       !!process.env.GEMINI_API_KEY && !!process.env.GEMINI_MODEL,
     geminiModel: process.env.GEMINI_MODEL || "",
@@ -89,22 +113,7 @@ export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
   return { values: result.values };
 }
 export async function googleToken(scope, fetchImpl = fetch) {
-  if (!process.env.GOOGLE_SERVICE_ACCOUNT_FILE)
-    throw problem("GOOGLE_SERVICE_ACCOUNT_FILEが未設定です。");
-  let credentials;
-  try {
-    credentials = JSON.parse(
-      readFileSync(process.env.GOOGLE_SERVICE_ACCOUNT_FILE, "utf8"),
-    );
-  } catch {
-    throw problem("サービスアカウントの資格情報ファイルを読み込めません。");
-  }
-  if (
-    !credentials.client_email ||
-    !credentials.private_key ||
-    credentials.type !== "service_account"
-  )
-    throw problem("サービスアカウント形式の資格情報が必要です。");
+  const credentials = googleCredentials();
   const stamp = Math.floor(Date.now() / 1000);
   let token =
     tokenCache?.key === credentials.private_key &&

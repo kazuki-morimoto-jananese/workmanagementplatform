@@ -200,12 +200,24 @@ test("private Sheets preview is read-only and repeated manual sync preserves for
       600000,
     );
     assert.ok(!app.store.get("salesSettings", "source").lastScheduledAttemptAt);
+    await req("/sales/connections", "POST", {
+      ...connection,
+      enabled: true,
+      syncTime: "00:00",
+    });
+    amount = 575000;
+    await app.tick();
+    assert.equal(app.store.all("salesMasters")[0].gTrend, 575000);
+    assert.ok(app.store.get("salesSettings", "source").lastScheduledAttemptAt);
+    amount = 580000;
+    await app.tick();
+    assert.equal(app.store.all("salesMasters")[0].gTrend, 575000);
     failing = true;
     assert.equal(
       (await req("/sales/connections/sync", "POST", {})).status,
       503,
     );
-    assert.equal(app.store.all("salesMasters")[0].gTrend, 550000);
+    assert.equal(app.store.all("salesMasters")[0].gTrend, 575000);
     assert.ok(app.store.get("salesSettings", "source").lastSuccessAt);
     assert.match(app.store.get("salesSettings", "source").lastError, /Google/);
   } finally {

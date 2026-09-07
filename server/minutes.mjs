@@ -22,6 +22,9 @@ export function createMinuteService({
   enqueueSummary,
   readDocument = readGoogleDocument,
   extractNumbers = extractMinuteNumbers,
+  background = (promise) => {
+    void promise;
+  },
 }) {
   let working = false,
     stopped = false;
@@ -241,7 +244,7 @@ export function createMinuteService({
     };
     store.put("salesMinutes", updated);
     pending.push(minute.id);
-    void drain();
+    background(drain());
     return updated;
   }
   return {
@@ -256,7 +259,7 @@ export function createMinuteService({
           });
           pending.push(m.id);
         }
-      void drain();
+      background(drain());
     },
     stop() {
       stopped = true;

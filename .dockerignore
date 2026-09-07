@@ -4,6 +4,8 @@ data
 .env
 .env.*
 .secrets
+.wrangler
+.dev.vars*
 .git
 .browser-check-*.png
 *.log

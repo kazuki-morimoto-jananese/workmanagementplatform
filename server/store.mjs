@@ -29,7 +29,13 @@ export const safeUser = ({ password, ...user }) => user;
 export function openStore(directory) {
   mkdirSync(resolve(directory), { recursive: true });
   const db = new DatabaseSync(resolve(directory, "worknest.sqlite"));
-  db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
+  db.exec(
+    "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;",
+  );
+  return openStoreDatabase(db);
+}
+export function openStoreDatabase(db) {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(kind,id));
@@ -66,6 +72,7 @@ export function openStore(directory) {
       );
   const atomic = (fn) => {
     if (db.isTransaction) return fn();
+    if (db.transactionSync) return db.transactionSync(fn);
     db.exec("BEGIN IMMEDIATE");
     try {
       const result = fn();
@@ -166,15 +173,7 @@ export function openStore(directory) {
     audit: (kind, rid, after) =>
       audit(kind, rid, null, JSON.stringify(after), "event"),
     transaction(fn) {
-      db.exec("BEGIN IMMEDIATE");
-      try {
-        const result = fn();
-        db.exec("COMMIT");
-        return result;
-      } catch (e) {
-        db.exec("ROLLBACK");
-        throw e;
-      }
+      return atomic(fn);
     },
   };
 }

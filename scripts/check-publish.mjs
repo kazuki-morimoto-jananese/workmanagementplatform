@@ -7,11 +7,12 @@ export function inspectPublicFile(path, content = "") {
   const errors = [];
   const normalized = path.replaceAll("\\", "/");
   if (
-    /(^|\/)(data|backups|artifacts|attachments|\.secrets|\.codex|\.agents)(\/|$)/i.test(
+    /(^|\/)(data|backups|artifacts|attachments|\.secrets|\.wrangler|\.codex|\.agents)(\/|$)/i.test(
       normalized,
     ) ||
     (/(^|\/)\.env(?:\..+)?$/i.test(normalized) &&
       !normalized.endsWith(".env.example")) ||
+    /(^|\/)\.dev\.vars(?:\..+)?$/i.test(normalized) ||
     /\.(?:sqlite(?:-.*)?|db(?:-.*)?|pem|key|p12|pfx)$/i.test(normalized) ||
     /(^|\/)\.browser-check-.*\.png$/i.test(normalized)
   )

@@ -5,6 +5,9 @@ data/
 .env.*
 !.env.example
 .secrets/
+.wrangler/
+.dev.vars
+.dev.vars.*
 *.sqlite
 *.sqlite-*
 *.db

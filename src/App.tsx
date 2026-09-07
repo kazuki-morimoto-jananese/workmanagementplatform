@@ -2278,7 +2278,7 @@ export default function App() {
                 <div className="setting-row">
                   <div>
                     <strong>{data.workspace.name}</strong>
-                    <p>Worknest v2.4 · タスクと営業数字の共通ワークスペース</p>
+                    <p>Worknest v2.5 · タスクと営業数字の共通ワークスペース</p>
                   </div>
                   <span className="pill neutral">
                     <ShieldCheck size={13} />

@@ -21,7 +21,9 @@ import {
   auditContext,
 } from "./store.mjs";
 
-const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const root = import.meta.url?.startsWith("file:")
+  ? resolve(fileURLToPath(new URL("..", import.meta.url)))
+  : process.cwd();
 const statuses = ["todo", "progress", "review", "done"];
 const priorities = ["low", "medium", "high"];
 class HttpError extends Error {
@@ -50,9 +52,9 @@ const date = (value) => {
 const emailValid = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export function createApp(options = {}) {
-  const store = openStore(
-    options.dataDir || process.env.DATA_DIR || resolve(root, "data"),
-  );
+  const store =
+    options.store ||
+    openStore(options.dataDir || process.env.DATA_DIR || resolve(root, "data"));
   const production =
     options.production ?? process.env.NODE_ENV === "production";
   const allowedDomain = (
@@ -333,10 +335,13 @@ export function createApp(options = {}) {
     activity,
     minuteAdapters: options.minuteAdapters,
     sheetReader: options.sheetReader,
+    background: options.background,
   });
   const workspaceService = createWorkspaceService({
     store,
     dataDir: options.dataDir || process.env.DATA_DIR || resolve(root, "data"),
+    backupProvider: options.backupProvider,
+    storageInfo: options.storageInfo,
   });
 
   async function handler(req, res) {
@@ -401,11 +406,18 @@ export function createApp(options = {}) {
           "リクエストを確認できませんでした。",
         );
         const origins = [
-          process.env.APP_ORIGIN,
-          `http://${req.headers.host}`,
+          (typeof options.appOrigin === "function"
+            ? options.appOrigin()
+            : options.appOrigin) ||
+            process.env.APP_ORIGIN ||
+            process.env.RENDER_EXTERNAL_URL,
           ...(production
             ? []
-            : ["http://localhost:5173", "http://127.0.0.1:5173"]),
+            : [
+                `http://${req.headers.host}`,
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+              ]),
         ].filter(Boolean);
         fail(
           !req.headers.origin || origins.includes(req.headers.origin),
@@ -985,8 +997,8 @@ export function createApp(options = {}) {
   );
   server.requestTimeout = 30000;
   server.on("listening", () => {
-    sales.start();
-    workspaceService.start();
+    sales.start({ timers: options.timers !== false });
+    workspaceService.start({ timers: options.timers !== false });
   });
   server.on("close", () => {
     sales.stop();
@@ -1001,7 +1013,15 @@ export function createApp(options = {}) {
       await workspaceService.waitForBackup();
       store.db.close();
     })());
-  return { server, store, close };
+  return {
+    server,
+    store,
+    close,
+    tick: async () => {
+      await sales.tick();
+      await workspaceService.tick();
+    },
+  };
 }
 if (
   process.argv[1] &&
