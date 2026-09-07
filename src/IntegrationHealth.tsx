@@ -5,6 +5,7 @@ type GoogleStatus = {
   email: string;
   serviceAccount: string;
   redirectUri: string;
+  calendar: boolean;
 };
 export function IntegrationHealth({
   api,
@@ -18,6 +19,9 @@ export function IntegrationHealth({
     [message, setMessage] = useState(""),
     [error, setError] = useState("");
   const load = () => api<GoogleStatus>("/google/status").then(setGoogle);
+  const [events, setEvents] = useState<
+    { id: string; title: string; start: string; url: string }[]
+  >([]);
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, []);
@@ -116,6 +120,47 @@ export function IntegrationHealth({
           を実行してください。設定後、このボタンから本人が許可できます。
         </p>
       )}
+      <h3>自分のGoogleカレンダー</h3>
+      <p>
+        今から14日間の予定を最大100件表示します。本人だけが閲覧でき、予定はWorknestに保存されません。Google
+        CloudでCalendar APIの有効化が必要です。
+      </p>
+      <button
+        className="button"
+        disabled={busy || !google?.configured}
+        onClick={() =>
+          void run(async () => {
+            if (!google?.calendar) {
+              const r = await api("/google/start", "POST", { calendar: true });
+              window.location.assign(r.url);
+            } else {
+              const r = await api("/google/calendar");
+              setEvents(r.events);
+              setMessage(
+                r.truncated
+                  ? "100件まで表示しています。続きはGoogleカレンダーで確認してください。"
+                  : "予定を更新しました。",
+              );
+            }
+          })
+        }
+      >
+        {google?.calendar ? "予定を更新" : "カレンダー閲覧を許可して接続"}
+      </button>
+      <ul>
+        {events.map((e) => (
+          <li key={e.id}>
+            {e.start} ·{" "}
+            {e.url ? (
+              <a href={e.url} target="_blank" rel="noreferrer">
+                {e.title}
+              </a>
+            ) : (
+              e.title
+            )}
+          </li>
+        ))}
+      </ul>
       {google?.serviceAccount && (
         <details>
           <summary>サービスアカウントを使う場合</summary>

@@ -22,6 +22,8 @@ export function inspectPublicFile(path, content = "") {
     /\bAIza[\w-]{35}\b/,
     /\bgh[pousr]_[A-Za-z0-9]{30,}\b/,
     /\bgithub_pat_[A-Za-z0-9_]{30,}\b/,
+    /\bwn_[A-Za-z0-9_-]{40,}\b/,
+    /\bGOCSPX-[A-Za-z0-9_-]{20,}\b/,
     /"private_key"\s*:\s*"[^"\n]{30,}/,
   ];
   if (signatures.some((pattern) => pattern.test(content)))

@@ -34,6 +34,7 @@ export function importedReview(m?: SalesMaster): SalesReview | undefined {
   };
 }
 export type PlanningRow = {
+  orgUnitId?: string;
   key: string;
   ownerName: string;
   target: number | null;
@@ -62,6 +63,7 @@ export function personalPlan(
       return {
         key,
         ownerName,
+        orgUnitId: targets.find((t) => t.ownerKey === key)?.orgUnitId,
         target: targets.find((t) => t.ownerKey === key)?.amount ?? null,
         trend: assigned.length
           ? sum(assigned.map((a) => master(a.id)?.gTrend))

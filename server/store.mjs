@@ -43,6 +43,8 @@ export function openStoreDatabase(db) {
     CREATE INDEX IF NOT EXISTS audit_record ON audit_log(kind,record_id,seq);
     CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY);`);
   const tracked = new Set([
+    "crmContacts",
+    "integrationBatches",
     "tasks",
     "projects",
     "salesAccounts",

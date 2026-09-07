@@ -2266,3 +2266,34 @@
   background: #f2f6ed;
   font-weight: 600;
 }
+.crm-workspace,
+.sales-organization {
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.crm-workspace > h3,
+.sales-organization > h2 {
+  margin-bottom: 12px;
+}
+.crm-workspace > p,
+.sales-organization > p {
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.crm-workspace > input,
+.crm-workspace > label {
+  margin: 12px 0;
+}
+.crm-workspace pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.crm-workspace code {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .crm-workspace,
+  .sales-organization {
+    padding: 16px;
+  }
+}

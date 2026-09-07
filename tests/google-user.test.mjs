@@ -26,6 +26,8 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
   };
   store.saveUser(user);
   let identity = user.email,
+    grantedScopes =
+      "openid email https://www.googleapis.com/auth/documents.readonly",
     tokenCalls = 0;
   const calls = [];
   const service = createGoogleUserService(store, {
@@ -42,10 +44,33 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
           access_token: "fake-access-only",
           refresh_token: "fake-refresh-only",
           expires_in: 1,
+          scope: grantedScopes,
         });
       }
       if (url === "https://openidconnect.googleapis.com/v1/userinfo")
         return Response.json({ email: identity, email_verified: true });
+      if (
+        url.startsWith(
+          "https://www.googleapis.com/calendar/v3/calendars/primary/events?",
+        )
+      ) {
+        const parsed = new URL(url);
+        assert.equal(parsed.searchParams.get("singleEvents"), "true");
+        return Response.json({
+          items: [
+            {
+              id: "meeting",
+              summary: "Meeting",
+              start: { date: "2026-09-08" },
+              htmlLink:
+                "https://calendar.google.com/calendar/event?eid=example",
+            },
+            { id: "cancelled", status: "cancelled" },
+            { id: "bad-link", htmlLink: "javascript:alert(1)" },
+          ],
+          nextPageToken: "more",
+        });
+      }
       if (url.startsWith("https://docs.googleapis.com/v1/documents/"))
         return Response.json({
           title: "Doc",
@@ -101,11 +126,18 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
       throw Error("Unexpected host");
     },
   });
-  const handle = async (path, method = "GET", who = user, query = "") => {
+  const handle = async (
+    path,
+    method = "GET",
+    who = user,
+    query = "",
+    body = {},
+  ) => {
     let response;
     await service.handle({
       path,
       method,
+      body,
       user: who,
       url: new URL("https://worknest.example" + path + query),
       send: (status, data, headers) => {
@@ -143,6 +175,36 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
     );
     assert.equal(doc.text, "第一タブ\n第二タブ");
     assert.equal(tokenCalls, 2);
+    await assert.rejects(
+      handle("/api/google/calendar"),
+      (e) => e.status === 403,
+    );
+    const calendarConsent = new URL(
+      (await handle("/api/google/start", "POST", user, "", { calendar: true }))
+        .data.url,
+    );
+    assert.ok(
+      calendarConsent.searchParams
+        .get("scope")
+        .includes("calendar.events.readonly"),
+    );
+    grantedScopes +=
+      " https://www.googleapis.com/auth/calendar.events.readonly";
+    await handle(
+      "/api/google/callback",
+      "GET",
+      user,
+      "?state=" + calendarConsent.searchParams.get("state") + "&code=sample",
+    );
+    assert.equal(googleUserStatus(store, user).calendar, true);
+    const agenda = await handle("/api/google/calendar");
+    assert.equal(agenda.data.events.length, 2);
+    assert.equal(agenda.data.events[1].url, "");
+    assert.equal(agenda.data.truncated, true);
+    assert.equal(
+      googleUserStatus(store, { ...user, id: "other" }).calendar,
+      false,
+    );
     identity = "wrong@company.test";
     const second = new URL(
       (await handle("/api/google/start", "POST")).data.url,

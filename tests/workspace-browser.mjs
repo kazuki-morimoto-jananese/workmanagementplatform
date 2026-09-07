@@ -32,9 +32,25 @@ export async function runWorkspaceBrowserChecks(page) {
   await panel
     .getByLabel("親組織", { exact: true })
     .selectOption({ label: "テスト株式会社 / 人材事業部" });
-  await panel.getByLabel("部署名", { exact: true }).fill("営業第一部");
+  await panel.getByLabel("部名", { exact: true }).fill("営業第一部");
   await panel.getByRole("button", { name: "保存", exact: true }).click();
   await expect(panel.locator(".organization-list")).toContainText("営業第一部");
+  await panel
+    .getByLabel("親組織", { exact: true })
+    .selectOption({ label: "テスト株式会社 / 人材事業部 / 営業第一部" });
+  await panel.getByLabel("グループ名", { exact: true }).fill("営業グループ");
+  await panel.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(panel.locator(".organization-list")).toContainText(
+    "営業グループ",
+  );
+  await panel
+    .getByLabel("親組織", { exact: true })
+    .selectOption({
+      label: "テスト株式会社 / 人材事業部 / 営業第一部 / 営業グループ",
+    });
+  await panel.getByLabel("チーム名", { exact: true }).fill("第一チーム");
+  await panel.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(panel.locator(".organization-list")).toContainText("第一チーム");
   await panel
     .getByLabel("自分の所属", { exact: true })
     .selectOption({ label: "テスト株式会社 / 人材事業部 / 営業第一部" });

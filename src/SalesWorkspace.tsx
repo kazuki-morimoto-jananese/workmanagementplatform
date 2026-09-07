@@ -54,7 +54,10 @@ import { OrganizationSelect, AuditHistory } from "./WorkspaceAdmin";
 import { MinuteNumbers } from "./MinuteNumbers";
 import { SalesImportFile } from "./SalesImportFile";
 import { IntegrationHealth } from "./IntegrationHealth";
+import { CrmWorkspace } from "./CrmWorkspace";
 import { PersonalTargets } from "./PersonalTargets";
+import { OrganizationSummary } from "./OrganizationSummary";
+import { belongsTo, assignPlanningOrganizations } from "./sales-organization";
 import {
   importedReview,
   personalPlan,
@@ -449,6 +452,7 @@ export default function SalesWorkspace({
     [owner, setOwner] = useState("all"),
     [accountScope, setAccountScope] = useState("active"),
     [dataScope, setDataScope] = useState("auto"),
+    [organizationScope, setOrganizationScope] = useState("all"),
     [onlyMissing, setOnlyMissing] = useState(false),
     [dialog, setDialog] = useState<Dialog | null>(null);
   const [importText, setImportText] = useState(""),
@@ -568,8 +572,23 @@ export default function SalesWorkspace({
     data.members.find((m) => m.id === a.ownerId)?.name ||
     a.ownerName ||
     "未割り当て";
+  const allPlanningRows = assignPlanningOrganizations(
+    personalPlan(
+      scopedAccounts,
+      (sales.personalTargets || []).filter((t) => t.scope === effectiveScope),
+      ownerName,
+      master,
+      latest,
+    ),
+    data.members,
+  );
+  const planningRows = allPlanningRows.filter((r) =>
+    belongsTo(data.orgUnits || [], r.orgUnitId, organizationScope),
+  );
+  const organizationOwners = new Set(planningRows.map((r) => r.key));
   const accounts = scopedAccounts.filter(
     (a) =>
+      organizationOwners.has(personKey(ownerName(a))) &&
       (accountScope === "all" ||
         !["解約", "停止", "休止", "利用停止"].includes(a.status)) &&
       (!search ||
@@ -590,13 +609,6 @@ export default function SalesWorkspace({
         latest(a.id)?.forecast == null),
   );
   const forecast = sum(accounts.map((a) => latest(a.id)?.forecast));
-  const planningRows = personalPlan(
-    scopedAccounts,
-    (sales.personalTargets || []).filter((t) => t.scope === effectiveScope),
-    ownerName,
-    master,
-    latest,
-  );
   const targetSettings = sales.targetSettings?.find(
     (t) => t.scope === effectiveScope,
   );
@@ -880,6 +892,7 @@ export default function SalesWorkspace({
           { id: "reviews", label: "週次ヨミ", icon: TrendingUp },
           { id: "opportunities", label: "商談", icon: BriefcaseBusiness },
           { id: "minutes", label: "議事録", icon: FileText },
+          { id: "crm", label: "顧客・リード", icon: BriefcaseBusiness },
           { id: "connections", label: "データ連携", icon: FolderSync },
         ].map((t) => (
           <button
@@ -895,6 +908,7 @@ export default function SalesWorkspace({
           </button>
         ))}
       </nav>
+      {tab === "crm" && <CrmWorkspace api={api} data={data} />}
       {error && (
         <div className="form-error" role="alert">
           {error}
@@ -1061,8 +1075,28 @@ export default function SalesWorkspace({
                   </div>
                 ))}
               </div>
+              <OrganizationSummary
+                units={data.orgUnits || []}
+                rows={allPlanningRows}
+                selected={organizationScope}
+                select={setOrganizationScope}
+              />
               <PersonalTargets
-                key={month + effectiveScope + (targetSettings?.version || 0)}
+                key={
+                  month +
+                  effectiveScope +
+                  organizationScope +
+                  (targetSettings?.version || 0)
+                }
+                units={data.orgUnits || []}
+                totalLabel={
+                  organizationScope === "all"
+                    ? undefined
+                    : organizationScope === "unassigned"
+                      ? "所属未設定"
+                      : data.orgUnits?.find((u) => u.id === organizationScope)
+                          ?.name
+                }
                 rows={planningRows}
                 settings={targetSettings}
                 month={month}
@@ -1961,6 +1995,7 @@ export default function SalesWorkspace({
                 </section>
               </div>
               <IntegrationHealth api={api} admin={data.user.role === "admin"} />
+              <CrmWorkspace api={api} data={data} integrations />
               <section className="panel sales-ai-config">
                 <div className="section-heading">
                   <h2>

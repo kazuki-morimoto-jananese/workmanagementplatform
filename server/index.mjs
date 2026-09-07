@@ -11,6 +11,7 @@ import {
   nextOccurrence,
 } from "./task-options.mjs";
 import { createGoogleUserService } from "./google-user.mjs";
+import { createCrmService } from "./crm.mjs";
 import {
   createWorkspaceService,
   assignees,
@@ -339,6 +340,7 @@ export function createApp(options = {}) {
               }
             }
       const task = {
+        crmContactId: previous?.crmContactId || "",
         recurrenceNextId: previous?.recurrenceNextId || "",
         recurrenceParentId: previous?.recurrenceParentId || "",
         recurrenceAnchor:
@@ -387,6 +389,7 @@ export function createApp(options = {}) {
     });
 
   const googleUser = createGoogleUserService(store, options.googleAdapters);
+  const crm = createCrmService(store, saveTask);
   const sales = createSalesService({
     store,
     saveTask,
@@ -522,6 +525,16 @@ export function createApp(options = {}) {
       const user = session ? store.user(session.user_id) : null;
       const signedIn = user?.active ? user : null;
       auditContext.getStore().actorId = signedIn?.id || "anonymous";
+      if (
+        await crm.external({
+          path,
+          method,
+          body,
+          authorization: req.headers.authorization,
+          send,
+        })
+      )
+        return;
       if (path === "/api/health" && method === "GET") {
         store.db.prepare("SELECT 1").get();
         return send(200, { status: "ok" });
@@ -671,6 +684,8 @@ export function createApp(options = {}) {
           url,
         })
       )
+        return;
+      if (await crm.handle({ path, method, body, user: signedIn, send }))
         return;
       if (
         await workspaceService.handle({

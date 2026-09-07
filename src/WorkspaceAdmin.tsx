@@ -30,8 +30,8 @@ export function OrganizationPanel({
   const [busy, setBusy] = useState(false);
   const [parent, setParent] = useState("");
   const [edit, setEdit] = useState<OrgUnit | null>(null);
-  const levels = ["company", "division", "department", "team"];
-  const labels = ["会社", "事業部", "部署", "チーム"];
+  const levels = ["company", "division", "department", "group", "team"];
+  const labels = ["会社", "事業部", "部", "グループ", "チーム"];
   const level = parent
     ? levels[
         levels.indexOf(units.find((u) => u.id === parent)?.level || "company") +
@@ -54,10 +54,10 @@ export function OrganizationPanel({
     <section className="panel settings-section organization-panel">
       <h2>組織と所属</h2>
       <p>
-        同じ部署のチームを増やすときは、親組織に同じ部署を選んでチーム名を登録します。その後「自分の所属」で所属先を選びます。
+        部の下にグループ、その下にチームを登録できます。その後「自分の所属」で所属先を選びます。
       </p>
       <p>
-        会社 → 事業部 → 部署 →
+        会社 → 事業部 → 部 → グループ →
         チーム。登録した共通名を、メンバー・プロジェクト・営業アカウントで使います。
       </p>
       {error && (
@@ -238,12 +238,18 @@ export function AuditHistory({
     <div className="audit-history">
       <div className="admin-actions">
         <h3>変更履歴</h3>
-        <button className="button" disabled={busy} onClick={() => void load()}>
+        <button
+          type="button"
+          className="button"
+          disabled={busy}
+          onClick={() => void load()}
+        >
           履歴を更新
         </button>
         <button
           className="button"
           disabled={!entries.length}
+          type="button"
           onClick={() => {
             const href = URL.createObjectURL(
               new Blob([JSON.stringify(entries, null, 2)], {
@@ -304,6 +310,7 @@ export function AuditHistory({
           className="button"
           disabled={busy}
           onClick={() => void load(next)}
+          type="button"
         >
           さらに過去の履歴
         </button>

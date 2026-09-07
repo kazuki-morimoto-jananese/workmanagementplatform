@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { PlanningRow } from "./sales-planning";
 import { personKey } from "./sales-planning";
 import type { TargetSettings } from "./sales-types";
+import type { OrgUnit } from "./types";
+import { OrganizationSelect } from "./WorkspaceAdmin";
 const yen = (n: number | null) =>
   n == null ? "—" : "¥" + n.toLocaleString("ja-JP");
 export function PersonalTargets({
@@ -11,6 +13,8 @@ export function PersonalTargets({
   scope,
   admin,
   save,
+  units = [],
+  totalLabel,
 }: {
   rows: PlanningRow[];
   settings?: TargetSettings;
@@ -18,6 +22,8 @@ export function PersonalTargets({
   scope: string;
   admin: boolean;
   save: (body: unknown) => Promise<unknown>;
+  units?: OrgUnit[];
+  totalLabel?: string;
 }) {
   const [editing, setEditing] = useState(false),
     [team, setTeam] = useState(settings?.teamName || "チーム"),
@@ -29,6 +35,9 @@ export function PersonalTargets({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const displayed = [...rows, ...added];
+  const [organizations, setOrganizations] = useState<Record<string, string>>(
+    () => Object.fromEntries(rows.map((r) => [r.key, r.orgUnitId || ""])),
+  );
   const amount = (r: PlanningRow) =>
     editing ? (draft[r.key]?.trim() ? Number(draft[r.key]) : null) : r.target;
   const sum = (v: (number | null)[]) =>
@@ -97,13 +106,28 @@ export function PersonalTargets({
           </thead>
           <tbody>
             <tr className="sales-target-total">
-              <th>{team}合計</th>
+              <th>{totalLabel || team}合計</th>
               <td>{yen(totalTarget)}</td>
               {cells(totalTarget, totalTrend, totalForecast)}
             </tr>
             {displayed.map((r) => (
               <tr key={r.key}>
-                <th>{r.ownerName}</th>
+                <th>
+                  {r.ownerName}
+                  {editing && (
+                    <OrganizationSelect
+                      units={units}
+                      aria-label={`${r.ownerName}の目標所属`}
+                      value={organizations[r.key] || ""}
+                      onChange={(e) =>
+                        setOrganizations({
+                          ...organizations,
+                          [r.key]: e.target.value,
+                        })
+                      }
+                    />
+                  )}
+                </th>
                 <td>
                   {editing ? (
                     <input
@@ -193,6 +217,7 @@ export function PersonalTargets({
                     version: settings?.version || 0,
                     rows: displayed.map((r) => ({
                       ownerName: r.ownerName,
+                      orgUnitId: organizations[r.key] || "",
                       amount: draft[r.key] ?? "",
                     })),
                   });
@@ -216,6 +241,11 @@ export function PersonalTargets({
                   ),
                 );
                 setAdded([]);
+                setOrganizations(
+                  Object.fromEntries(
+                    rows.map((r) => [r.key, r.orgUnitId || ""]),
+                  ),
+                );
                 setTeam(settings?.teamName || "チーム");
                 setEditing(false);
                 setError("");

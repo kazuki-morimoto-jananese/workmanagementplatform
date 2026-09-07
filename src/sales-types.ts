@@ -205,6 +205,7 @@ export type ImportPreview = {
   count: number;
 };
 export type PersonalTarget = {
+  orgUnitId?: string;
   id: string;
   month: string;
   scope: string;

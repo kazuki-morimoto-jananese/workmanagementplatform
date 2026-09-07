@@ -1,6 +1,8 @@
 # Worknest
 
-**v2.8: 繰り返し・非公開タスク、Gemini接続テスト、Google本人認証に対応しました。** [タスクの設定](docs/task-options.md)、[Googleドキュメント接続の初期設定](docs/google-user-connection.md)。
+**v2.9: 組織別営業サマリー、顧客・リード管理、Googleカレンダー閲覧、外部CRM受付APIと企業別導入設定を追加しました。** [サービス調査と実装範囲](docs/workspace-crm-research.md)、[企業導入手順](docs/commercial-onboarding.md)、[共通APIの使い方](docs/integration-contract.md)。
+
+[タスクの繰り返し・公開範囲](docs/task-options.md)、[Googleドキュメント接続の初期設定](docs/google-user-connection.md)。
 
 **v2.7: 個人目標と担当者別の予実表、アグレッシブ確度を追加しました。** Excelの「今月ヨミ」は週次入力がない場合に自動表示します。[個人目標とヨミの使い方](docs/personal-targets.md)。
 

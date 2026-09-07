@@ -1,4 +1,5 @@
 import { now } from "./store.mjs";
+import { orgReference } from "./workspace.mjs";
 import { numeric, IMPORT_FIELDS, normalizeHeader } from "./sales-import.mjs";
 export const ownerKey = (value) =>
   String(value || "")
@@ -68,7 +69,12 @@ export function savePersonalTargets(store, body, user) {
     fail(owner && ownerName.length <= 80, "担当者名を入力してください。");
     fail(!seen.has(owner), "同じ担当者の目標が重複しています。");
     seen.add(owner);
+    const targetId = JSON.stringify([body.month, body.scope, owner]);
+    const orgUnitId = Object.hasOwn(row, "orgUnitId")
+      ? orgReference(store, row.orgUnitId)
+      : store.get("salesPersonalTargets", targetId)?.orgUnitId;
     return {
+      ...(orgUnitId !== undefined ? { orgUnitId } : {}),
       id: JSON.stringify([body.month, body.scope, owner]),
       month: body.month,
       scope: body.scope,

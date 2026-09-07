@@ -11,6 +11,8 @@ import {
   readGoogleDocument,
 } from "./minute-integrations.mjs";
 const scope = "openid email https://www.googleapis.com/auth/documents.readonly";
+const calendarScope =
+  "https://www.googleapis.com/auth/calendar.events.readonly";
 const fail = (ok, message, status = 400) => {
   if (!ok) throw Object.assign(new Error(message), { status });
 };
@@ -70,6 +72,7 @@ export function googleUserStatus(store, user) {
     configured: configured(),
     connected: configured() && !!connection,
     email: connection?.email || "",
+    calendar: configured() && !!connection?.scopes?.includes(calendarScope),
     serviceAccount,
     redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI || "",
   };
@@ -194,7 +197,7 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
       sourceUrl: "https://docs.google.com/document/d/" + fileId + "/edit",
     };
   }
-  async function handle({ path, method, user, url, send }) {
+  async function handle({ path, method, user, url, send, body = {} }) {
     if (!path.startsWith("/api/google/")) return false;
     if (path === "/api/google/status" && method === "GET") {
       send(200, googleUserStatus(store, user));
@@ -212,6 +215,54 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
       503,
     );
     const redirect = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+    if (path === "/api/google/calendar" && method === "GET") {
+      fail(
+        googleUserStatus(store, user).calendar,
+        "カレンダー閲覧の追加許可が必要です。データ連携でカレンダーを接続してください。",
+        403,
+      );
+      const start = new Date(),
+        end = new Date(start.getTime() + 14 * 86400000);
+      const params = new URLSearchParams({
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString(),
+        singleEvents: "true",
+        orderBy: "startTime",
+        maxResults: "100",
+      });
+      let result;
+      try {
+        result = await jsonRequest(
+          "https://www.googleapis.com/calendar/v3/calendars/primary/events?" +
+            params,
+          { headers: { Authorization: "Bearer " + (await access(user)) } },
+          fetchImpl,
+        );
+      } catch (e) {
+        if (/HTTP (403|404)/.test(e.message))
+          fail(
+            false,
+            "Google Calendar APIの有効化、会社のAPI利用許可、カレンダー閲覧の許可を確認してください。",
+            403,
+          );
+        throw e;
+      }
+      send(200, {
+        events: (result.items || [])
+          .filter((e) => e.status !== "cancelled")
+          .map((e) => ({
+            id: e.id,
+            title: e.summary || "予定",
+            start: e.start?.dateTime || e.start?.date,
+            end: e.end?.dateTime || e.end?.date,
+            url: /^https:\/\/([a-z]+\.)?google\.com\//.test(e.htmlLink || "")
+              ? e.htmlLink
+              : "",
+          })),
+        truncated: !!result.nextPageToken,
+      });
+      return true;
+    }
     if (path === "/api/google/start" && method === "POST") {
       const state = randomBytes(32).toString("base64url"),
         verifier = randomBytes(48).toString("base64url");
@@ -228,7 +279,12 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
         client_id: process.env.GOOGLE_OAUTH_CLIENT_ID,
         redirect_uri: redirect,
         response_type: "code",
-        scope,
+        scope:
+          scope +
+          (body.calendar === true || googleUserStatus(store, user).calendar
+            ? " " + calendarScope
+            : ""),
+        include_granted_scopes: "true",
         state,
         access_type: "offline",
         prompt: "consent",
@@ -291,6 +347,10 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
       store.put("googleConnections", {
         id: user.id,
         email: profile.email,
+        scopes:
+          typeof result.scope === "string"
+            ? result.scope.split(" ")
+            : scope.split(" "),
         connectedAt: now(),
         secret: seal({
           accessToken: result.access_token,

@@ -127,7 +127,7 @@ export function createWorkspaceService({
           name && name.length <= 80,
           "組織名を80文字以内で入力してください。",
         );
-        const levels = ["company", "division", "department", "team"];
+        const levels = ["company", "division", "department", "group", "team"];
         const level = old?.level || body.level;
         fail(levels.includes(level), "組織の粒度を選択してください。");
         const parentId = old?.parentId ?? orgReference(store, body.parentId);
@@ -135,7 +135,8 @@ export function createWorkspaceService({
         fail(
           level === "company"
             ? !parentId
-            : parent?.level === levels[levels.indexOf(level) - 1],
+            : parent?.level === levels[levels.indexOf(level) - 1] ||
+                (level === "team" && parent?.level === "department"),
           "会社→事業部→部署→チームの順に親組織を選んでください。",
         );
         fail(
@@ -185,7 +186,15 @@ export function createWorkspaceService({
           fail(
             kind &&
               recordId &&
-              !["members", "settings", "salesSettings", "auth"].includes(kind),
+              ![
+                "members",
+                "settings",
+                "salesSettings",
+                "auth",
+                "integrationBatches",
+                "integrations",
+                "integrationTokens",
+              ].includes(kind),
             "全社監査ログは管理者のみ閲覧できます。",
             403,
           );
