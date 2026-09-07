@@ -46,6 +46,23 @@ export async function runExcelBrowserChecks(page) {
     .getByRole("heading", { name: "2 件のプレビュー", exact: true })
     .waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("region", { name: "ヨミの列対応" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("対応列 今月ヨミ", { exact: true })).toHaveValue(
+    "3",
+  );
+  await page.getByLabel("対応列 今月ヨミ", { exact: true }).selectOption("");
+  await expect(
+    page.getByRole("button", { name: "この内容で取り込む", exact: true }),
+  ).toBeDisabled();
+  await page.getByLabel("対応列 今月ヨミ", { exact: true }).selectOption("3");
+  await page
+    .getByRole("button", { name: "取込内容を確認", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "この内容で取り込む", exact: true }),
+  ).toBeEnabled();
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth > innerWidth,

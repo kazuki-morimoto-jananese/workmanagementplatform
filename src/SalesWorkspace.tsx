@@ -1514,20 +1514,14 @@ export default function SalesWorkspace({
                   {preview && (
                     <div className="sales-preview">
                       <h3>{preview.count} 件のプレビュー</h3>
-                      <details>
-                        <summary>列の対応を確認・変更する</summary>
-                        <div className="sales-mapping-grid">
-                          {(
-                            (
-                              preview as ImportPreview & {
-                                fieldOptions?: { key: string; label: string }[];
-                              }
-                            ).fieldOptions ||
-                            Object.keys(mapping).map((key) => ({
-                              key,
-                              label: key,
-                            }))
-                          ).map((f) => (
+                      <section aria-label="ヨミの列対応">
+                        <h4>ヨミの対応を確認</h4>
+                        <div className="sales-mapping-grid sales-forecast-mapping">
+                          {[
+                            { key: "forecast", label: "今月ヨミ" },
+                            { key: "aggressive", label: "アグレッシブ数字" },
+                            { key: "reason", label: "ヨミ根拠" },
+                          ].map((f) => (
                             <label key={f.key}>
                               {f.label}
                               <select
@@ -1555,6 +1549,57 @@ export default function SalesWorkspace({
                           ))}
                         </div>
                         <p>
+                          Excelの今月ヨミを週次ヨミへ移す場合は、下の「初回移行」にチェックしてください。すでに入力済みの当週ヨミは上書きしません。列を変更したら「取込内容を確認」をもう一度押してください。
+                        </p>
+                      </section>
+                      <details>
+                        <summary>列の対応を確認・変更する</summary>
+                        <div className="sales-mapping-grid">
+                          {(
+                            (
+                              preview as ImportPreview & {
+                                fieldOptions?: { key: string; label: string }[];
+                              }
+                            ).fieldOptions ||
+                            Object.keys(mapping).map((key) => ({
+                              key,
+                              label: key,
+                            }))
+                          )
+                            .filter(
+                              (f) =>
+                                !["forecast", "aggressive", "reason"].includes(
+                                  f.key,
+                                ),
+                            )
+                            .map((f) => (
+                              <label key={f.key}>
+                                {f.label}
+                                <select
+                                  aria-label={`対応列 ${f.label}`}
+                                  value={mapping[f.key] ?? ""}
+                                  onChange={(e) => {
+                                    setMappingDirty(true);
+                                    setMapping({
+                                      ...mapping,
+                                      [f.key]:
+                                        e.target.value === ""
+                                          ? ""
+                                          : Number(e.target.value),
+                                    });
+                                  }}
+                                >
+                                  <option value="">取り込まない</option>
+                                  {preview.headers.map((h, i) => (
+                                    <option key={i} value={i}>
+                                      {h.replace(/\n/g, " ")}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            ))}
+                        </div>
+                        <p>
                           変更後は「取込内容を確認」をもう一度押してください。
                         </p>
                       </details>
@@ -1563,6 +1608,9 @@ export default function SalesWorkspace({
                           {e}
                         </p>
                       ))}
+                      <p className="sales-muted">
+                        前月実績・Gトレは0円や空欄のまま取り込めます。配信停止・未反映のために追加入力する必要はありません。0円と空欄は区別して保存します。
+                      </p>
                       {preview.warnings.slice(0, 6).map((w, i) => (
                         <p className="sales-preview-warning" key={i}>
                           {w}
@@ -1574,7 +1622,11 @@ export default function SalesWorkspace({
                             <code>{r.accountId}</code>
                             <span>{r.name}</span>
                             <small>
-                              {yen(r.gTrend as number | null)} Gトレ
+                              前月実績 {yen(r.previousActual as number | null)}
+                              <br />
+                              Gトレ {yen(r.gTrend as number | null)}
+                              <br />
+                              今月ヨミ {yen(r.forecast as number | null)}
                             </small>
                           </div>
                         ))}

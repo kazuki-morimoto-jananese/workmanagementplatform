@@ -45,7 +45,7 @@ export function excelFixture() {
       [
         "B001",
         "株式会社ブラウザーテスト",
-        { formula: "1240000/2", value: 620000 },
+          { formula: "1240000/2", value: "6.2E5" },
         900000,
         "森本 一輝",
         800000,

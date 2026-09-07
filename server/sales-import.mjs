@@ -127,12 +127,14 @@ export function numeric(value, label = "数値") {
     .normalize("NFKC")
     .replace(/[¥￥円,\s]/g, "");
   if (
-    !/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(normalized) ||
+    !/^(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?$/i.test(normalized) ||
     !Number.isFinite(Number(normalized)) ||
     Number(normalized) > 9e12
   )
     throw Object.assign(
-      new Error(`${label}: 0以上の数値（円）を入力してください。`),
+      new Error(
+        `${label}: 数値として読み取れません。0以上の金額（円）または空欄にしてください。`,
+      ),
       { status: 400 },
     );
   return Number(normalized);

@@ -1032,6 +1032,9 @@
 .sales-excel-options p {
   grid-column: 1 / -1;
 }
+.sales-forecast-mapping {
+  max-height: none;
+}
 .sales-file-name {
   overflow-wrap: anywhere;
 }
