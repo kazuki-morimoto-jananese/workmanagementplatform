@@ -31,6 +31,10 @@ export type SalesAccount = {
   version: number;
 };
 export type SalesMaster = {
+  importedForecast?: number | null;
+  importedAggressive?: number | null;
+  importedConfidence?: string;
+  importedReason?: string;
   id: string;
   accountId: string;
   month: string;
@@ -45,6 +49,8 @@ export type SalesMaster = {
   sourceName: string;
 };
 export type SalesReview = {
+  source?: "import";
+  aggressiveConfidence?: string;
   id: string;
   accountId: string;
   month: string;
@@ -140,6 +146,8 @@ export type SalesSource = {
   nextRunAt?: string;
 };
 export type SalesData = {
+  personalTargets?: PersonalTarget[];
+  targetSettings?: TargetSettings[];
   demoPeriods?: {
     month: string;
     offset: number;
@@ -195,4 +203,19 @@ export type ImportPreview = {
   errors: string[];
   warnings: string[];
   count: number;
+};
+export type PersonalTarget = {
+  id: string;
+  month: string;
+  scope: string;
+  ownerName: string;
+  ownerKey: string;
+  amount: number | null;
+};
+export type TargetSettings = {
+  id: string;
+  month: string;
+  scope: string;
+  teamName: string;
+  version: number;
 };

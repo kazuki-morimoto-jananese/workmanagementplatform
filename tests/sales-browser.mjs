@@ -23,6 +23,43 @@ export async function runSalesBrowserChecks(page) {
     })
     .waitFor();
   await page.getByRole("button", { name: "週次ヨミ", exact: true }).click();
+  assert.equal(
+    await page
+      .getByRole("columnheader", { name: "当月目標", exact: true })
+      .count(),
+    0,
+  );
+  await page.getByRole("button", { name: "営業サマリー", exact: true }).click();
+  assert.ok(
+    !(await page.locator(".sales-kpis").textContent()).includes("600,000"),
+    "Account target must not become a personal target",
+  );
+  await page
+    .getByRole("button", { name: "個人目標を編集", exact: true })
+    .click();
+  await page.getByLabel("合計行のチーム名", { exact: true }).fill("営業");
+  await page
+    .locator('.sales-personal-targets input[type="number"]')
+    .first()
+    .fill("600000");
+  await page
+    .getByRole("button", { name: "個人目標を保存", exact: true })
+    .click();
+  await page.getByText("個人目標を保存しました", { exact: true }).waitFor();
+  assert.ok(
+    (await page.locator(".sales-kpis").textContent()).includes("600,000"),
+  );
+  await page.getByRole("button", { name: "週次ヨミ", exact: true }).click();
+  await page
+    .getByLabel("テスト営業アカウントのアグレッシブ確度", { exact: true })
+    .selectOption("C");
+  await page.getByText("保存しました", { exact: true }).waitFor();
+  assert.equal(
+    await page
+      .getByLabel("テスト営業アカウントのアグレッシブ確度", { exact: true })
+      .inputValue(),
+    "C",
+  );
   await page.locator(".sales-account-button").first().click();
   let modal = page.getByRole("dialog");
   await modal.getByLabel("今月ヨミ（円）", { exact: true }).fill("500000");

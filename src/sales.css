@@ -2245,3 +2245,24 @@
     gap: 13px;
   }
 }
+.sales-personal-targets {
+  padding: 24px;
+  margin: 20px 0;
+  min-width: 0;
+}
+.sales-personal-targets p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 12px 0;
+}
+.sales-personal-targets input {
+  min-width: 150px;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #dce3d5;
+  border-radius: 6px;
+}
+.sales-target-total {
+  background: #f2f6ed;
+  font-weight: 600;
+}

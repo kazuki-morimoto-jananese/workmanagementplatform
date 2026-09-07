@@ -143,6 +143,48 @@ export function seedSalesDemo(
     created[kind] = (created[kind] || 0) + 1;
   };
   store.transaction(() => {
+    // Demo monthly personal budgets are separate records from account forecasts.
+    for (const period of periods) {
+      const owners = [
+        ...new Map(
+          (members.length ? members : [user])
+            .slice(0, 6)
+            .map((m) => [
+              m.name.normalize("NFKC").replace(/\s/g, "").toLowerCase(),
+              m.name,
+            ]),
+        ).entries(),
+      ];
+      const total =
+        period.offset < 0 ? 29700000 : period.offset > 0 ? 37950000 : 33000000;
+      owners.forEach(([ownerKey, ownerName], i) => {
+        const rid = key(period.month, "demo", ownerKey);
+        if (!store.get("salesPersonalTargets", rid))
+          put("salesPersonalTargets", {
+            id: rid,
+            month: period.month,
+            scope: "demo",
+            ownerName,
+            ownerKey,
+            amount:
+              Math.floor(total / owners.length) +
+              (i === 0 ? total % owners.length : 0),
+            updatedAt: stamp,
+            updatedBy: user.id,
+          });
+      });
+      const sid = key(period.month, "demo");
+      if (!store.get("salesTargetSettings", sid))
+        put("salesTargetSettings", {
+          id: sid,
+          month: period.month,
+          scope: "demo",
+          teamName: "デモ営業",
+          version: 1,
+          updatedAt: stamp,
+          updatedBy: user.id,
+        });
+    }
     put("projects", {
       id: projectId,
       name: "デモ：営業アクション",

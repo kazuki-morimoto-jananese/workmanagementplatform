@@ -53,6 +53,13 @@ import "./sales.css";
 import { OrganizationSelect, AuditHistory } from "./WorkspaceAdmin";
 import { MinuteNumbers } from "./MinuteNumbers";
 import { SalesImportFile } from "./SalesImportFile";
+import { PersonalTargets } from "./PersonalTargets";
+import {
+  importedReview,
+  personalPlan,
+  confidenceOptions,
+  personKey,
+} from "./sales-planning";
 
 type Props = {
   data: Data;
@@ -548,7 +555,8 @@ export default function SalesWorkspace({
   const latest = (aid: string, before = week) =>
     sales.reviews
       .filter((r) => r.accountId === aid && r.weekOf <= before)
-      .sort((a, b) => b.weekOf.localeCompare(a.weekOf))[0];
+      .sort((a, b) => b.weekOf.localeCompare(a.weekOf))[0] ||
+    (before === week ? importedReview(master(aid)) : undefined);
   const previousWeek = new Date(week + "T00:00:00Z");
   previousWeek.setUTCDate(previousWeek.getUTCDate() - 7);
   const previous = (aid: string) =>
@@ -573,18 +581,34 @@ export default function SalesWorkspace({
           ? a.ownerId === data.user.id
           : owner === "unassigned"
             ? !a.ownerId
-            : a.ownerId === owner)) &&
+            : owner.startsWith("name:")
+              ? personKey(ownerName(a)) === owner.slice(5)
+              : a.ownerId === owner)) &&
       (!onlyMissing ||
         latest(a.id)?.weekOf !== week ||
         latest(a.id)?.forecast == null),
   );
   const forecast = sum(accounts.map((a) => latest(a.id)?.forecast));
-  const target = sum(accounts.map((a) => master(a.id)?.target));
+  const planningRows = personalPlan(
+    scopedAccounts,
+    (sales.personalTargets || []).filter((t) => t.scope === effectiveScope),
+    ownerName,
+    master,
+    latest,
+  );
+  const targetSettings = sales.targetSettings?.find(
+    (t) => t.scope === effectiveScope,
+  );
+  const target = sum(
+    planningRows
+      .filter(
+        (r) =>
+          owner === "all" || accounts.some((a) => ownerName(a) === r.ownerName),
+      )
+      .map((r) => r.target),
+  );
   const completeNumbers =
-    accounts.length > 0 &&
-    accounts.every(
-      (a) => master(a.id)?.target != null && latest(a.id)?.forecast != null,
-    );
+    target !== null && forecast !== null && !search && !onlyMissing;
   const trend = sum(accounts.map((a) => master(a.id)?.gTrend));
   const actual = sum(
     accounts.map(
@@ -946,6 +970,20 @@ export default function SalesWorkspace({
                   <option value="all">すべての担当者</option>
                   <option value="me">自分の担当</option>
                   <option value="unassigned">紐付け未設定</option>
+                  {[
+                    ...new Set(
+                      scopedAccounts
+                        .filter((a) => !a.ownerId && a.ownerName)
+                        .map((a) => a.ownerName),
+                    ),
+                  ].map((name) => (
+                    <option
+                      key={"name:" + personKey(name)}
+                      value={"name:" + personKey(name)}
+                    >
+                      {name}（Excel担当者）
+                    </option>
+                  ))}
                   {data.members
                     .filter((m) => m.active)
                     .map((m) => (
@@ -981,13 +1019,13 @@ export default function SalesWorkspace({
                     title: "当月目標",
                     value: yen(target),
                     icon: Target,
-                    note: `目標設定 ${accounts.filter((a) => master(a.id)?.target != null).length} / ${accounts.length} 件`,
+                    note: "担当者の個人目標（月間）の合計",
                   },
                   {
                     title: "担当者の着地ヨミ",
                     value: yen(forecast),
                     icon: TrendingUp,
-                    note: `当週入力 ${filled} / ${accounts.length} 件 · 過去入力の引継ぎを含む`,
+                    note: `当週入力 ${filled} / ${accounts.length} 件 · 手入力を優先し、未登録はExcelの今月ヨミ`,
                   },
                   {
                     title: "目標との差",
@@ -997,8 +1035,8 @@ export default function SalesWorkspace({
                         : "—",
                     icon: BarChart3,
                     note: completeNumbers
-                      ? "ヨミ − 目標（表示対象全件）"
-                      : "目標・ヨミが全件揃うと差分を算定します",
+                      ? "ヨミ − 個人目標（未入力を除く小計）"
+                      : "個人目標・ヨミを設定し、検索を解除すると算定します",
                     warn:
                       target !== null && forecast !== null && forecast < target,
                   },
@@ -1022,6 +1060,17 @@ export default function SalesWorkspace({
                   </div>
                 ))}
               </div>
+              <PersonalTargets
+                key={month + effectiveScope + (targetSettings?.version || 0)}
+                rows={planningRows}
+                settings={targetSettings}
+                month={month}
+                scope={effectiveScope}
+                admin={data.user.role === "admin"}
+                save={(body) =>
+                  perform("/targets", body, "個人目標を保存しました")
+                }
+              />
               <div className="sales-summary-grid">
                 <section className="panel sales-progress-panel">
                   <div className="section-heading">
@@ -1520,6 +1569,10 @@ export default function SalesWorkspace({
                           {[
                             { key: "forecast", label: "今月ヨミ" },
                             { key: "aggressive", label: "アグレッシブ数字" },
+                            {
+                              key: "aggressiveConfidence",
+                              label: "アグレッシブ確度",
+                            },
                             { key: "reason", label: "ヨミ根拠" },
                           ].map((f) => (
                             <label key={f.key}>
@@ -1549,7 +1602,7 @@ export default function SalesWorkspace({
                           ))}
                         </div>
                         <p>
-                          Excelの今月ヨミを週次ヨミへ移す場合は、下の「初回移行」にチェックしてください。すでに入力済みの当週ヨミは上書きしません。列を変更したら「取込内容を確認」をもう一度押してください。
+                          Excelの今月ヨミ・アグレッシブは取込後に表示されます。手入力済みの週次ヨミを優先します。「初回移行」は週次記録として保存する場合だけ選択してください。列を変更したら「取込内容を確認」をもう一度押してください。
                         </p>
                       </section>
                       <details>
@@ -1568,9 +1621,12 @@ export default function SalesWorkspace({
                           )
                             .filter(
                               (f) =>
-                                !["forecast", "aggressive", "reason"].includes(
-                                  f.key,
-                                ),
+                                ![
+                                  "forecast",
+                                  "aggressive",
+                                  "aggressiveConfidence",
+                                  "reason",
+                                ].includes(f.key),
                             )
                             .map((f) => (
                               <label key={f.key}>
@@ -2610,11 +2666,12 @@ export default function SalesWorkspace({
             <thead>
               <tr>
                 <th>アカウント / 担当者</th>
-                <th>当月目標</th>
+
                 <th>Gトレ</th>
                 <th>着地ヨミ</th>
                 <th>前週差</th>
                 <th>アグレッシブ</th>
+                <th>アグレッシブ確度</th>
                 <th>入力・状況</th>
                 <th />
               </tr>
@@ -2644,7 +2701,7 @@ export default function SalesWorkspace({
                         </span>
                       </button>
                     </td>
-                    <td>{yen(m?.target)}</td>
+
                     <td>{yen(m?.gTrend)}</td>
                     <td className="sales-forecast-number">
                       {yen(r?.forecast)}
@@ -2664,14 +2721,48 @@ export default function SalesWorkspace({
                     </td>
                     <td>{yen(r?.aggressive)}</td>
                     <td>
+                      <select
+                        aria-label={a.name + "のアグレッシブ確度"}
+                        value={r?.aggressiveConfidence || ""}
+                        disabled={busy}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          void action(() =>
+                            perform("/reviews/confidence", {
+                              accountId: a.id,
+                              month,
+                              weekOf: week,
+                              version:
+                                r?.weekOf === week ? r.version : undefined,
+                              aggressiveConfidence: value,
+                            }),
+                          );
+                        }}
+                      >
+                        <option value="">未設定</option>
+                        {[
+                          ...new Set([
+                            ...confidenceOptions,
+                            ...(r?.aggressiveConfidence
+                              ? [r.aggressiveConfidence]
+                              : []),
+                          ]),
+                        ].map((c) => (
+                          <option key={c}>{c}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
                       <span
                         className={`pill ${r?.weekOf === week && r.forecast !== null ? "sage" : "peach"}`}
                       >
                         {r?.weekOf === week && r.forecast !== null
                           ? "当週入力済"
-                          : r
-                            ? "過去週・未入力"
-                            : "未入力"}
+                          : r?.source === "import"
+                            ? "Excel取込"
+                            : r
+                              ? "過去週・未入力"
+                              : "未入力"}
                       </span>
                       {risks(a).length > 0 && (
                         <small className="sales-risk-caption">
@@ -2810,14 +2901,11 @@ function ReviewDialog({
         {review && review.weekOf !== week && (
           <div className="info-box">
             <History size={17} />
-            {review.weekOf} の入力を引き継いでいます。保存すると {week}{" "}
-            の記録になります。
+            {review.source === "import" ? "Excel" : review.weekOf}{" "}
+            の入力を引き継いでいます。保存すると {week} の記録になります。
           </div>
         )}
         <div className="sales-review-reference">
-          <span>
-            当月目標 <strong>{yen(master?.target)}</strong>
-          </span>
           <span>
             Gトレ <strong>{yen(master?.gTrend)}</strong>
           </span>
@@ -2837,6 +2925,25 @@ function ReviewDialog({
             value={review?.aggressive}
           />
         </div>
+        <label>
+          アグレッシブ確度
+          <select
+            name="aggressiveConfidence"
+            defaultValue={review?.aggressiveConfidence || ""}
+          >
+            <option value="">未設定</option>
+            {[
+              ...new Set([
+                ...confidenceOptions,
+                ...(review?.aggressiveConfidence
+                  ? [review.aggressiveConfidence]
+                  : []),
+              ]),
+            ].map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </label>
         <Num
           name="probability"
           label="アグレッシブの確度（%）"

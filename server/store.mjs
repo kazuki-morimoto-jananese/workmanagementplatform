@@ -48,6 +48,8 @@ export function openStoreDatabase(db) {
     "salesAccounts",
     "salesMasters",
     "salesReviews",
+    "salesPersonalTargets",
+    "salesTargetSettings",
     "salesMinutes",
     "salesOpportunities",
     "salesActivities",

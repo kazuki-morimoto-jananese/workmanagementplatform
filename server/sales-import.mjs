@@ -18,6 +18,7 @@ export const IMPORT_FIELDS = {
   nextTarget: ["目標金額(来月目標)", "来月目標"],
   forecast: ["今月ヨミ"],
   aggressive: ["アグレッシブ数字"],
+  aggressiveConfidence: ["アグレッシブ：確度", "アグレッシブ確度"],
   reason: ["ヨミ根拠（なぜそのヨミなのか）", "ヨミ根拠"],
   nextAction: ["今週やること"],
   customerGoal: ["顧客目標（取得日付き）", "顧客目標"],

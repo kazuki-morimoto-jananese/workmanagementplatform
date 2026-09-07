@@ -3,6 +3,7 @@ import { seedSalesDemo, demoPeriods } from "./sales-demo.mjs";
 import { createMinuteService } from "./minutes.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
 import { syncTime, scheduledSyncDue } from "./sales-schedule.mjs";
+import { withImportedForecast, savePersonalTargets } from "./sales-targets.mjs";
 import { buildPreview, emptyMedia, numeric, csvCell } from "./sales-import.mjs";
 import {
   integrationStatus,
@@ -175,6 +176,7 @@ export function createSalesService({
       forecast,
       aggressive,
       probability,
+      aggressiveConfidence: text(body.aggressiveConfidence, 40),
       reason,
       nextAction: text(body.nextAction),
       customerGoal: text(body.customerGoal),
@@ -279,6 +281,14 @@ export function createSalesService({
           importedAt: now(),
           sourceName,
         };
+        for (const [field, source] of Object.entries({
+          importedForecast: "forecast",
+          importedAggressive: "aggressive",
+          importedConfidence: "aggressiveConfidence",
+          importedReason: "reason",
+        })) {
+          if (Object.hasOwn(row, source)) master[field] = row[source];
+        }
         for (const k of [
           "previousActual",
           "previousGTrend",
@@ -516,7 +526,16 @@ export function createSalesService({
           group: a.orgUnitId ? orgPath(store, a.orgUnitId) : a.group,
         })),
         demoPeriods: demoPeriods(jstToday()),
-        masters: store.all("salesMasters").filter((m) => m.month === month),
+        masters: store
+          .all("salesMasters")
+          .filter((m) => m.month === month)
+          .map(withImportedForecast),
+        personalTargets: store
+          .all("salesPersonalTargets")
+          .filter((t) => t.month === month),
+        targetSettings: store
+          .all("salesTargetSettings")
+          .filter((t) => t.month === month),
         reviews: store.all("salesReviews").filter((r) => r.month === month),
         opportunities: store.all("salesOpportunities"),
         minutes: store.all("salesMinutes").reverse(),
@@ -531,6 +550,45 @@ export function createSalesService({
       });
     }
     const am = p.match(/^\/sales\/accounts(?:\/([^/]+))?$/);
+    if (p === "/sales/targets" && method === "POST")
+      return reply(200, savePersonalTargets(store, body, user));
+    if (p === "/sales/reviews/confidence" && method === "POST") {
+      const a = account(body.accountId),
+        month = monthValue(body.month),
+        weekOf = dateValue(body.weekOf, true);
+      const current = store.get("salesReviews", key(a.id, month, weekOf));
+      version(current, body);
+      const previous = store
+        .all("salesReviews")
+        .filter(
+          (r) =>
+            r.accountId === a.id && r.month === month && r.weekOf <= weekOf,
+        )
+        .sort((a, b) => b.weekOf.localeCompare(a.weekOf))[0];
+      const m = withImportedForecast(
+        store.get("salesMasters", key(a.id, month)),
+      );
+      return reply(
+        200,
+        saveReview(
+          {
+            ...(previous || {
+              forecast: m?.importedForecast,
+              aggressive: m?.importedAggressive,
+              reason: m?.importedReason,
+              media: m?.media,
+            }),
+            accountId: a.id,
+            month,
+            weekOf,
+            version: current?.version,
+            aggressiveConfidence: text(body.aggressiveConfidence, 40),
+          },
+          user,
+          true,
+        ),
+      );
+    }
     if (am && ["POST", "PATCH"].includes(method)) {
       check(method === "POST" ? !am[1] : !!am[1], "操作を確認してください。");
       return reply(
@@ -871,7 +929,9 @@ export function createSalesService({
                 r.accountId === a.id && r.month === month && r.weekOf <= week,
             )
             .sort((a, b) => b.weekOf.localeCompare(a.weekOf))[0];
-          const m = store.get("salesMasters", key(a.id, month));
+          const m = withImportedForecast(
+            store.get("salesMasters", key(a.id, month)),
+          );
           return [
             a.id,
             a.name,
@@ -880,9 +940,10 @@ export function createSalesService({
             r?.weekOf,
             m?.target,
             m?.gTrend,
-            r?.forecast,
-            r?.aggressive,
-            r?.reason,
+            r ? r.forecast : m?.importedForecast,
+            r ? r.aggressive : m?.importedAggressive,
+            r ? r.aggressiveConfidence : m?.importedConfidence,
+            r ? r.reason : m?.importedReason,
             r?.nextAction,
           ];
         });
@@ -895,10 +956,11 @@ export function createSalesService({
             "当月担当者",
             "対象月",
             "入力週",
-            "目標",
+            "アカウント参考目標",
             "Gトレ",
             "ヨミ",
             "アグレッシブ",
+            "アグレッシブ確度",
             "ヨミ根拠",
             "今週やること",
           ],
