@@ -58,6 +58,8 @@ export function openStoreDatabase(db) {
     "salesSettings",
     "salesDashboardSettings",
     "salesDashboardSnapshots",
+    "salesDirectorySettings",
+    "salesDirectoryAccounts",
     "orgUnits",
     "settings",
   ]);

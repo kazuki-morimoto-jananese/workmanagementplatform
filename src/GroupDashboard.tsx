@@ -34,11 +34,13 @@ function DashboardContent({
   month,
   admin,
   children,
+  directory,
 }: {
   api: <T = any>(path: string, method?: string, body?: unknown) => Promise<T>;
   month: string;
   admin: boolean;
   children: ReactNode;
+  directory?: ReactNode;
 }) {
   const [payload, setPayload] = useState<Payload | null>(null),
     [draft, setDraft] = useState<Settings | null>(null);
@@ -162,6 +164,7 @@ function DashboardContent({
           </p>
         )}
       </section>
+      {directory}
       {error && (
         <p role="alert" className="form-error">
           {error}

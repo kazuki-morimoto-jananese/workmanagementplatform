@@ -58,6 +58,7 @@ import { CrmWorkspace } from "./CrmWorkspace";
 import { PersonalTargets } from "./PersonalTargets";
 import { OrganizationSummary } from "./OrganizationSummary";
 import { GroupDashboard } from "./GroupDashboard";
+import { AccountDirectory } from "./AccountDirectory";
 import { belongsTo, assignPlanningOrganizations } from "./sales-organization";
 import {
   importedReview,
@@ -890,6 +891,7 @@ export default function SalesWorkspace({
       <nav className="sales-tabs" aria-label="営業管理ビュー">
         {[
           { id: "summary", label: "営業サマリー", icon: BarChart3 },
+          { id: "directory", label: "アカウントマスタ", icon: Users },
           { id: "reviews", label: "週次ヨミ", icon: TrendingUp },
           { id: "opportunities", label: "商談", icon: BriefcaseBusiness },
           { id: "minutes", label: "議事録", icon: FileText },
@@ -1027,6 +1029,22 @@ export default function SalesWorkspace({
                 <span>{accounts.length} アカウント</span>
               </div>
             )}
+          {tab === "directory" && effectiveScope === "demo" && (
+            <section className="panel sales-organization">
+              <p>
+                アカウントマスタは実データ専用です。「表示データ」で実データに切り替えてください。
+              </p>
+            </section>
+          )}
+          {tab === "directory" && effectiveScope !== "demo" && (
+            <AccountDirectory
+              key={month}
+              api={api}
+              month={month}
+              admin={data.user.role === "admin"}
+              members={data.members}
+            />
+          )}
           {tab === "summary" && (
             <>
               <GroupDashboard
@@ -1035,6 +1053,15 @@ export default function SalesWorkspace({
                 month={month}
                 admin={data.user.role === "admin"}
                 demo={effectiveScope === "demo"}
+                directory={
+                  <AccountDirectory
+                    key={month}
+                    api={api}
+                    month={month}
+                    admin={data.user.role === "admin"}
+                    members={data.members}
+                  />
+                }
               >
                 <div className="sales-kpis">
                   {[
