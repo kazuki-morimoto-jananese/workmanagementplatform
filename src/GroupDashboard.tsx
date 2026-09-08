@@ -114,12 +114,30 @@ function DashboardContent({
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={i}>
+              <tr
+                key={i}
+                className={
+                  block?.fixed && /合計|平均/.test(r.cells[0])
+                    ? "dashboard-total"
+                    : undefined
+                }
+              >
                 {r.cells.map((v, j) =>
                   j === 0 ? (
                     <th key={j}>{v || "—"}</th>
                   ) : (
-                    <td key={j}>{v || "—"}</td>
+                    <td
+                      key={j}
+                      className={
+                        block?.columns[j]?.label === "昨日時点実績"
+                          ? "dashboard-key-number"
+                          : block?.columns[j]?.label === "Gトレンド"
+                            ? "dashboard-trend"
+                            : undefined
+                      }
+                    >
+                      {v || "—"}
+                    </td>
                   ),
                 )}
               </tr>
