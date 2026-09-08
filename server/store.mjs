@@ -56,6 +56,8 @@ export function openStoreDatabase(db) {
     "salesOpportunities",
     "salesActivities",
     "salesSettings",
+    "salesDashboardSettings",
+    "salesDashboardSnapshots",
     "orgUnits",
     "settings",
   ]);

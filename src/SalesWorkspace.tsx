@@ -57,6 +57,7 @@ import { IntegrationHealth } from "./IntegrationHealth";
 import { CrmWorkspace } from "./CrmWorkspace";
 import { PersonalTargets } from "./PersonalTargets";
 import { OrganizationSummary } from "./OrganizationSummary";
+import { GroupDashboard } from "./GroupDashboard";
 import { belongsTo, assignPlanningOrganizations } from "./sales-organization";
 import {
   importedReview,
@@ -1026,249 +1027,259 @@ export default function SalesWorkspace({
                 <span>{accounts.length} アカウント</span>
               </div>
             )}
-          {tab === "summary" && sales.accounts.length > 0 && (
+          {tab === "summary" && (
             <>
-              <div className="sales-kpis">
-                {[
-                  {
-                    title: "当月目標",
-                    value: yen(target),
-                    icon: Target,
-                    note: "担当者の個人目標（月間）の合計",
-                  },
-                  {
-                    title: "担当者の着地ヨミ",
-                    value: yen(forecast),
-                    icon: TrendingUp,
-                    note: `当週入力 ${filled} / ${accounts.length} 件 · 手入力を優先し、未登録はExcelの今月ヨミ`,
-                  },
-                  {
-                    title: "目標との差",
-                    value:
-                      completeNumbers && target !== null && forecast !== null
-                        ? yen(forecast - target)
-                        : "—",
-                    icon: BarChart3,
-                    note: completeNumbers
-                      ? "ヨミ − 個人目標（未入力を除く小計）"
-                      : "個人目標・ヨミを設定し、検索を解除すると算定します",
-                    warn:
-                      target !== null && forecast !== null && forecast < target,
-                  },
-                  {
-                    title: "確度加重パイプライン",
-                    value: yen(weighted),
-                    icon: BriefcaseBusiness,
-                    note: "商談金額 × 確度。ヨミには加算しません",
-                  },
-                ].map((k) => (
-                  <div
-                    className={`sales-kpi ${k.warn ? "warning" : ""}`}
-                    key={k.title}
-                  >
-                    <span>
-                      <k.icon size={17} />
-                      {k.title}
-                    </span>
-                    <strong>{k.value}</strong>
-                    <small>{k.note}</small>
-                  </div>
-                ))}
-              </div>
-              <OrganizationSummary
-                units={data.orgUnits || []}
-                rows={allPlanningRows}
-                selected={organizationScope}
-                select={setOrganizationScope}
-              />
-              <PersonalTargets
-                key={
-                  month +
-                  effectiveScope +
-                  organizationScope +
-                  (targetSettings?.version || 0)
-                }
-                units={data.orgUnits || []}
-                totalLabel={
-                  organizationScope === "all"
-                    ? undefined
-                    : organizationScope === "unassigned"
-                      ? "所属未設定"
-                      : data.orgUnits?.find((u) => u.id === organizationScope)
-                          ?.name
-                }
-                rows={planningRows}
-                settings={targetSettings}
+              <GroupDashboard
+                key={month + effectiveScope}
+                api={api}
                 month={month}
-                scope={effectiveScope}
                 admin={data.user.role === "admin"}
-                save={(body) =>
-                  perform("/targets", body, "個人目標を保存しました")
-                }
-              />
-              <div className="sales-summary-grid">
-                <section className="panel sales-progress-panel">
-                  <div className="section-heading">
-                    <h2>当月の着地を見渡す</h2>
-                    <span className="pill sage">{month}</span>
-                  </div>
+                demo={effectiveScope === "demo"}
+              >
+                <div className="sales-kpis">
                   {[
-                    { name: "目標", value: target, color: "target" },
-                    { name: "Gトレ", value: trend, color: "trend" },
-                    { name: "ヨミ", value: forecast, color: "forecast" },
                     {
-                      name: "スタンバイ消化実績",
-                      value: actual,
-                      color: "actual",
+                      title: "当月目標",
+                      value: yen(target),
+                      icon: Target,
+                      note: "担当者の個人目標（月間）の合計",
                     },
-                  ].map((item) => (
-                    <div className="sales-chart-row" key={item.name}>
-                      <label>{item.name}</label>
+                    {
+                      title: "担当者の着地ヨミ",
+                      value: yen(forecast),
+                      icon: TrendingUp,
+                      note: `当週入力 ${filled} / ${accounts.length} 件 · 手入力を優先し、未登録はExcelの今月ヨミ`,
+                    },
+                    {
+                      title: "目標との差",
+                      value:
+                        completeNumbers && target !== null && forecast !== null
+                          ? yen(forecast - target)
+                          : "—",
+                      icon: BarChart3,
+                      note: completeNumbers
+                        ? "ヨミ − 個人目標（未入力を除く小計）"
+                        : "個人目標・ヨミを設定し、検索を解除すると算定します",
+                      warn:
+                        target !== null &&
+                        forecast !== null &&
+                        forecast < target,
+                    },
+                    {
+                      title: "確度加重パイプライン",
+                      value: yen(weighted),
+                      icon: BriefcaseBusiness,
+                      note: "商談金額 × 確度。ヨミには加算しません",
+                    },
+                  ].map((k) => (
+                    <div
+                      className={`sales-kpi ${k.warn ? "warning" : ""}`}
+                      key={k.title}
+                    >
+                      <span>
+                        <k.icon size={17} />
+                        {k.title}
+                      </span>
+                      <strong>{k.value}</strong>
+                      <small>{k.note}</small>
+                    </div>
+                  ))}
+                </div>
+                <OrganizationSummary
+                  units={data.orgUnits || []}
+                  rows={allPlanningRows}
+                  selected={organizationScope}
+                  select={setOrganizationScope}
+                />
+                <PersonalTargets
+                  key={
+                    month +
+                    effectiveScope +
+                    organizationScope +
+                    (targetSettings?.version || 0)
+                  }
+                  units={data.orgUnits || []}
+                  totalLabel={
+                    organizationScope === "all"
+                      ? undefined
+                      : organizationScope === "unassigned"
+                        ? "所属未設定"
+                        : data.orgUnits?.find((u) => u.id === organizationScope)
+                            ?.name
+                  }
+                  rows={planningRows}
+                  settings={targetSettings}
+                  month={month}
+                  scope={effectiveScope}
+                  admin={data.user.role === "admin"}
+                  save={(body) =>
+                    perform("/targets", body, "個人目標を保存しました")
+                  }
+                />
+                <div className="sales-summary-grid">
+                  <section className="panel sales-progress-panel">
+                    <div className="section-heading">
+                      <h2>当月の着地を見渡す</h2>
+                      <span className="pill sage">{month}</span>
+                    </div>
+                    {[
+                      { name: "目標", value: target, color: "target" },
+                      { name: "Gトレ", value: trend, color: "trend" },
+                      { name: "ヨミ", value: forecast, color: "forecast" },
+                      {
+                        name: "スタンバイ消化実績",
+                        value: actual,
+                        color: "actual",
+                      },
+                    ].map((item) => (
+                      <div className="sales-chart-row" key={item.name}>
+                        <label>{item.name}</label>
+                        <div>
+                          <i
+                            className={item.color}
+                            style={{
+                              width: `${Math.min(100, Math.max(0, ((item.value || 0) / Math.max(target || 0, trend || 0, forecast || 0, actual || 0, 1)) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                        <strong>{yen(item.value)}</strong>
+                      </div>
+                    ))}
+                    <p>
+                      Gトレ＝当月消化額の着地予測。ヨミは担当者判断による月全体の予測です。
+                    </p>
+                    <div className="sales-coverage">
+                      <span>当週のヨミ入力率</span>
+                      <strong>
+                        {accounts.length
+                          ? Math.round((filled / accounts.length) * 100)
+                          : 0}
+                        %
+                      </strong>
                       <div>
                         <i
-                          className={item.color}
                           style={{
-                            width: `${Math.min(100, Math.max(0, ((item.value || 0) / Math.max(target || 0, trend || 0, forecast || 0, actual || 0, 1)) * 100))}%`,
+                            width: `${accounts.length ? (filled / accounts.length) * 100 : 0}%`,
                           }}
                         />
                       </div>
-                      <strong>{yen(item.value)}</strong>
                     </div>
-                  ))}
-                  <p>
-                    Gトレ＝当月消化額の着地予測。ヨミは担当者判断による月全体の予測です。
-                  </p>
-                  <div className="sales-coverage">
-                    <span>当週のヨミ入力率</span>
-                    <strong>
-                      {accounts.length
-                        ? Math.round((filled / accounts.length) * 100)
-                        : 0}
-                      %
-                    </strong>
-                    <div>
-                      <i
-                        style={{
-                          width: `${accounts.length ? (filled / accounts.length) * 100 : 0}%`,
-                        }}
-                      />
+                  </section>
+                  <section className="panel sales-health-panel">
+                    <div className="section-heading">
+                      <h2>先に確認したいこと</h2>
+                      <AlertTriangle size={17} />
                     </div>
-                  </div>
-                </section>
-                <section className="panel sales-health-panel">
-                  <div className="section-heading">
-                    <h2>先に確認したいこと</h2>
-                    <AlertTriangle size={17} />
-                  </div>
-                  {accounts
-                    .filter((a) => risks(a).length)
-                    .slice(0, 5)
-                    .map((a) => (
-                      <button
-                        className="sales-health-row"
-                        key={a.id}
-                        onClick={() =>
-                          setDialog({ type: "review", accountId: a.id })
-                        }
-                      >
-                        <span>
-                          <strong>{a.name}</strong>
-                          <small>{risks(a).slice(0, 3).join(" · ")}</small>
-                        </span>
-                        <ChevronRight size={15} />
-                      </button>
-                    ))}
-                  {!accounts.some((a) => risks(a).length) && (
-                    <p className="sales-muted">確認対象はありません。</p>
-                  )}
-                </section>
-              </div>
-              <div className="sales-section-title">
-                <h2>アカウント別の見通し</h2>
-                <button
-                  className="text-button"
-                  onClick={() => setTab("reviews")}
-                >
-                  週次ヨミを入力 <ArrowRight size={14} />
-                </button>
-              </div>
-              {accountTable()}
-              <section className="panel sales-actions-panel">
-                <div className="section-heading">
-                  <h2>当月の行動と、次のタスク</h2>
+                    {accounts
+                      .filter((a) => risks(a).length)
+                      .slice(0, 5)
+                      .map((a) => (
+                        <button
+                          className="sales-health-row"
+                          key={a.id}
+                          onClick={() =>
+                            setDialog({ type: "review", accountId: a.id })
+                          }
+                        >
+                          <span>
+                            <strong>{a.name}</strong>
+                            <small>{risks(a).slice(0, 3).join(" · ")}</small>
+                          </span>
+                          <ChevronRight size={15} />
+                        </button>
+                      ))}
+                    {!accounts.some((a) => risks(a).length) && (
+                      <p className="sales-muted">確認対象はありません。</p>
+                    )}
+                  </section>
+                </div>
+                <div className="sales-section-title">
+                  <h2>アカウント別の見通し</h2>
                   <button
-                    className="button compact"
-                    onClick={() => setDialog({ type: "activity" })}
+                    className="text-button"
+                    onClick={() => setTab("reviews")}
                   >
-                    <Plus size={14} />
-                    行動を記録
+                    週次ヨミを入力 <ArrowRight size={14} />
                   </button>
                 </div>
-                <div className="sales-activity-kpis">
-                  {[
-                    { type: "call", label: "架電・接点", icon: Phone },
-                    { type: "meeting", label: "商談・訪問", icon: Users },
-                    { type: "proposal", label: "提案", icon: FileText },
-                  ].map((k) => (
-                    <div key={k.type}>
-                      <k.icon size={17} />
-                      <span>{k.label}</span>
+                {accountTable()}
+                <section className="panel sales-actions-panel">
+                  <div className="section-heading">
+                    <h2>当月の行動と、次のタスク</h2>
+                    <button
+                      className="button compact"
+                      onClick={() => setDialog({ type: "activity" })}
+                    >
+                      <Plus size={14} />
+                      行動を記録
+                    </button>
+                  </div>
+                  <div className="sales-activity-kpis">
+                    {[
+                      { type: "call", label: "架電・接点", icon: Phone },
+                      { type: "meeting", label: "商談・訪問", icon: Users },
+                      { type: "proposal", label: "提案", icon: FileText },
+                    ].map((k) => (
+                      <div key={k.type}>
+                        <k.icon size={17} />
+                        <span>{k.label}</span>
+                        <strong>
+                          {
+                            sales.activities.filter(
+                              (a) =>
+                                a.type === k.type &&
+                                a.date.slice(0, 7) === month &&
+                                accounts.some((x) => x.id === a.accountId),
+                            ).length
+                          }
+                          <small>件</small>
+                        </strong>
+                      </div>
+                    ))}
+                    <div>
+                      <CheckCircle2 size={17} />
+                      <span>営業タスク完了</span>
                       <strong>
                         {
-                          sales.activities.filter(
-                            (a) =>
-                              a.type === k.type &&
-                              a.date.slice(0, 7) === month &&
-                              accounts.some((x) => x.id === a.accountId),
+                          data.tasks.filter(
+                            (t) =>
+                              t.accountId &&
+                              accounts.some((a) => a.id === t.accountId) &&
+                              t.status === "done",
                           ).length
                         }
-                        <small>件</small>
+                        <small>件（累計）</small>
                       </strong>
                     </div>
-                  ))}
-                  <div>
-                    <CheckCircle2 size={17} />
-                    <span>営業タスク完了</span>
-                    <strong>
-                      {
-                        data.tasks.filter(
-                          (t) =>
-                            t.accountId &&
-                            accounts.some((a) => a.id === t.accountId) &&
-                            t.status === "done",
-                        ).length
-                      }
-                      <small>件（累計）</small>
-                    </strong>
                   </div>
-                </div>
-                <div className="sales-next-tasks">
-                  {data.tasks
-                    .filter(
-                      (t) =>
-                        t.accountId &&
-                        t.status !== "done" &&
-                        accounts.some((a) => a.id === t.accountId),
-                    )
-                    .slice(0, 6)
-                    .map((t) => (
-                      <button key={t.id} onClick={() => onOpenTask(t)}>
-                        <CheckCircle2 size={15} />
-                        <span>{t.title}</span>
-                        <small>
-                          {
-                            sales.accounts.find((a) => a.id === t.accountId)
-                              ?.name
-                          }
-                        </small>
-                        <ChevronRight size={13} />
-                      </button>
-                    ))}
-                </div>
-                <p className="sales-muted">
-                  行動記録は自己申告です。商談・議事録の登録件数を架電や提案件数として自動加算しません。
-                </p>
-              </section>
+                  <div className="sales-next-tasks">
+                    {data.tasks
+                      .filter(
+                        (t) =>
+                          t.accountId &&
+                          t.status !== "done" &&
+                          accounts.some((a) => a.id === t.accountId),
+                      )
+                      .slice(0, 6)
+                      .map((t) => (
+                        <button key={t.id} onClick={() => onOpenTask(t)}>
+                          <CheckCircle2 size={15} />
+                          <span>{t.title}</span>
+                          <small>
+                            {
+                              sales.accounts.find((a) => a.id === t.accountId)
+                                ?.name
+                            }
+                          </small>
+                          <ChevronRight size={13} />
+                        </button>
+                      ))}
+                  </div>
+                  <p className="sales-muted">
+                    行動記録は自己申告です。商談・議事録の登録件数を架電や提案件数として自動加算しません。
+                  </p>
+                </section>
+              </GroupDashboard>
             </>
           )}
           {tab === "reviews" && sales.accounts.length > 0 && (

@@ -1,5 +1,7 @@
 # Worknest
 
+**v2.10: 固定KGIサマリーとグループ別カスタムViewを追加。** 専用スプシ接続、月別の指標・表示列設定、日次同期、スナップショット保存に対応。[使い方](docs/group-dashboards.md)。
+
 **v2.9.1: Google Sheetsの本人認証に対応。** 外部のサービスアカウントへ共有せず、接続者の権限でプレビュー・手動同期・日次同期ができます。[接続手順](docs/google-sheets-user.md)。会社のAPI利用許可は別途必要な場合があります。
 
 **v2.9: 組織別営業サマリー、顧客・リード管理、Googleカレンダー閲覧、外部CRM受付APIと企業別導入設定を追加しました。** [サービス調査と実装範囲](docs/workspace-crm-research.md)、[企業導入手順](docs/commercial-onboarding.md)、[共通APIの使い方](docs/integration-contract.md)。

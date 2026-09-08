@@ -1,6 +1,7 @@
 import { id, now, auditContext } from "./store.mjs";
 import { seedSalesDemo, demoPeriods } from "./sales-demo.mjs";
 import { createMinuteService } from "./minutes.mjs";
+import { createDashboardService } from "./sales-dashboard.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
 import { syncTime, scheduledSyncDue } from "./sales-schedule.mjs";
 import { withImportedForecast, savePersonalTargets } from "./sales-targets.mjs";
@@ -85,6 +86,7 @@ export function createSalesService({
     syncing = false,
     working = false;
   const queue = [];
+  const dashboardService = createDashboardService({ store, sheetReader });
   const account = (aid) => {
     const a = store.get("salesAccounts", aid);
     check(a, "アカウントが見つかりません。", 404);
@@ -500,6 +502,7 @@ export function createSalesService({
     }
   }
   function tick() {
+    if (!stopped) background(dashboardService.tick());
     const source = store.get("salesSettings", "source");
     if (!source?.enabled || syncing || stopped) return;
     if (scheduledSyncDue(source)) {
@@ -516,6 +519,8 @@ export function createSalesService({
     };
     const admin = () =>
       check(user.role === "admin", "管理者のみ操作できます。", 403);
+    if (await dashboardService.handle({ p, method, body, user, reply, url }))
+      return true;
     if (await minuteService.handle({ p, method, body, user, reply }))
       return true;
     if (p === "/sales/bootstrap" && method === "GET") {

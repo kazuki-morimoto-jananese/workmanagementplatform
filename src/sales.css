@@ -2297,3 +2297,36 @@
     padding: 16px;
   }
 }
+.dashboard-settings {
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.dashboard-settings label {
+  display: grid;
+  gap: 6px;
+}
+.dashboard-settings label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dashboard-block-settings {
+  border: 1px solid var(--border, #dce3d7);
+  padding: 16px;
+  border-radius: 12px;
+}
+.dashboard-block-settings > * {
+  margin-bottom: 12px;
+}
+.dashboard-column-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+.dashboard-column-settings input {
+  min-width: 0;
+  width: 100%;
+}

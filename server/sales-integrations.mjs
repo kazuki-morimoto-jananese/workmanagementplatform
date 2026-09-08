@@ -132,7 +132,7 @@ export async function readGoogleSheet(
   );
   if (!Array.isArray(result.values) || !result.values.length)
     throw problem("取得範囲が空です。見出し行を含む範囲を指定してください。");
-  if (result.values.length < 2)
+  if (result.values.length < 2 && !config.allowHeaderOnly)
     throw problem(
       "見出しだけでデータ行がありません。A21:AP21は1行だけです。例：'プランニング_9/7'!A21:AP のようにデータ行まで含めてください。",
     );
