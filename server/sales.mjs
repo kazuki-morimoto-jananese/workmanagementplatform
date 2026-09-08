@@ -546,6 +546,14 @@ export function createSalesService({
         imports: store.all("salesImports").slice(-50).reverse(),
         connections: {
           ...integrationStatus(),
+          sheetsConfigured:
+            source?.authMode === "user"
+              ? !!store.user(source.authUserId)?.active &&
+                store.user(source.authUserId)?.role === "admin" &&
+                googleUserStatus(store, { id: source.authUserId }).sheets
+              : integrationStatus().sheetsConfigured,
+          googleSheetsConfigured: googleUserStatus(store, user).configured,
+          googleSheetsConnected: googleUserStatus(store, user).sheets,
           driveConfigured:
             integrationStatus().driveConfigured ||
             googleUserStatus(store, user).connected,
@@ -922,7 +930,28 @@ export function createSalesService({
         "見出し行を含む取得範囲を指定してください。",
       );
       const previous = store.get("salesSettings", "source");
+      const authMode = body.authMode ?? previous?.authMode ?? "service";
+      check(
+        ["user", "service"].includes(authMode),
+        "接続方式を選択してください。",
+      );
+      const authUserId =
+        authMode === "user"
+          ? previous?.authMode === "user" && body.useMyGoogle !== true
+            ? previous.authUserId
+            : user.id
+          : "";
+      if (authMode === "user" && body.enabled === true)
+        check(
+          googleUserStatus(store, { id: authUserId }).sheets &&
+            store.user(authUserId)?.active &&
+            store.user(authUserId)?.role === "admin",
+          "日次同期を有効にする前に、接続者本人がスプシの閲覧を許可してください。",
+          403,
+        );
       const sameSource =
+        (previous?.authMode || "service") === authMode &&
+        (previous?.authUserId || "") === authUserId &&
         previous?.spreadsheetId === body.spreadsheetId &&
         previous?.range === text(body.range, 250) &&
         previous?.month === body.month &&
@@ -931,6 +960,8 @@ export function createSalesService({
           JSON.stringify(body.mapping || {});
       const item = {
         id: "source",
+        authMode,
+        authUserId,
         name: text(body.name, 150) || "Google Sheets",
         spreadsheetId: body.spreadsheetId,
         range: text(body.range, 250),

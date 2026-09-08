@@ -5,7 +5,11 @@ import {
   createDecipheriv,
 } from "node:crypto";
 import { digest, now } from "./store.mjs";
-import { jsonRequest, googleCredentials } from "./sales-integrations.mjs";
+import {
+  jsonRequest,
+  googleCredentials,
+  readGoogleSheet,
+} from "./sales-integrations.mjs";
 import {
   googleDocumentId,
   readGoogleDocument,
@@ -13,6 +17,7 @@ import {
 const scope = "openid email https://www.googleapis.com/auth/documents.readonly";
 const calendarScope =
   "https://www.googleapis.com/auth/calendar.events.readonly";
+const sheetsScope = "https://www.googleapis.com/auth/spreadsheets.readonly";
 const fail = (ok, message, status = 400) => {
   if (!ok) throw Object.assign(new Error(message), { status });
 };
@@ -73,11 +78,71 @@ export function googleUserStatus(store, user) {
     connected: configured() && !!connection,
     email: connection?.email || "",
     calendar: configured() && !!connection?.scopes?.includes(calendarScope),
+    sheets: configured() && !!connection?.scopes?.includes(sheetsScope),
     serviceAccount,
     redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI || "",
   };
 }
 export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
+  async function readSheet(config) {
+    if (config.authMode !== "user")
+      return readGoogleSheet(config, { fetchImpl });
+    const user = store.user(config.authUserId);
+    const validate = () => {
+      const current = user && store.user(user.id);
+      fail(
+        current?.active &&
+          current.role === "admin" &&
+          !current.mustChangePassword,
+        "同期に使用するGoogle接続者が無効です。管理者が本人認証の接続先を設定し直してください。",
+        403,
+      );
+      fail(
+        googleUserStatus(store, user).sheets,
+        "スプシの閲覧許可がありません。接続者本人が「スプシ閲覧を許可して接続」を押してください。",
+        403,
+      );
+    };
+    validate();
+    let secret;
+    try {
+      const result = await readGoogleSheet(config, {
+        fetchImpl,
+        getAccessToken: async () => {
+          const token = await access(user);
+          secret = store.get("googleConnections", user.id)?.secret;
+          return token;
+        },
+      });
+      validate();
+      fail(
+        secret === store.get("googleConnections", user.id)?.secret,
+        "取得中にGoogle接続が変更されました。再試行してください。",
+        409,
+      );
+      return result;
+    } catch (e) {
+      if (/HTTP 403/.test(e.message))
+        fail(
+          false,
+          "Google Sheetsが取得を拒否しました（HTTP 403）。接続者の閲覧権限、Sheets APIの有効化、Google側の追加認証、会社のAPI制限・利用上限を確認してください。403だけでは原因は確定できません。",
+          403,
+        );
+      if (/HTTP 404/.test(e.message))
+        fail(
+          false,
+          "スプシが見つからないか接続者に閲覧権限がありません。IDとGoogleアカウントを確認してください。",
+          404,
+        );
+      if (/HTTP 400/.test(e.message))
+        fail(
+          false,
+          "取得範囲を確認してください。例：'プランニング_9/7'!A21:AP。見出しとデータ行を含めます。",
+          400,
+        );
+      throw e;
+    }
+  }
   async function access(user) {
     fail(
       configured(),
@@ -283,6 +348,9 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
           scope +
           (body.calendar === true || googleUserStatus(store, user).calendar
             ? " " + calendarScope
+            : "") +
+          (body.sheets === true || googleUserStatus(store, user).sheets
+            ? " " + sheetsScope
             : ""),
         include_granted_scopes: "true",
         state,
@@ -366,5 +434,5 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
     }
     fail(false, "Google接続のAPIが見つかりません。", 404);
   }
-  return { handle, readDocument };
+  return { handle, readDocument, readSheet };
 }

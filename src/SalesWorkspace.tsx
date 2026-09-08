@@ -1798,6 +1798,7 @@ export default function SalesWorkspace({
                           ...fields,
                           month,
                           enabled: fields.enabled === "on",
+                          useMyGoogle: fields.useMyGoogle === "on",
                           rollingMonth: fields.rollingMonth === "on",
                           mapping:
                             fields.usePreviewMapping === "on" &&
@@ -1829,6 +1830,30 @@ export default function SalesWorkspace({
                         required
                       />
                     </label>
+                    <label>
+                      スプシの接続方式
+                      <select
+                        name="authMode"
+                        aria-label="スプシの接続方式"
+                        defaultValue={
+                          sales.connections.source?.authMode || "service"
+                        }
+                      >
+                        <option value="user">
+                          本人のGoogleアカウント（外部共有不要）
+                        </option>
+                        <option value="service">
+                          サービスアカウント（閲覧共有が必要）
+                        </option>
+                      </select>
+                    </label>
+                    <label className="check-label">
+                      <input type="checkbox" name="useMyGoogle" />
+                      本人認証の接続者を自分に変更する
+                    </label>
+                    <p className="sales-muted">
+                      本人認証では、取得した営業マスタをこのワークスペース内で共有します。日次同期も保存した接続者の権限で実行します。
+                    </p>
                     <label className="check-label">
                       <input
                         name="usePreviewMapping"
@@ -1861,6 +1886,9 @@ export default function SalesWorkspace({
                         required
                       />
                     </label>
+                    <p className="sales-muted">
+                      例：'プランニング_9/7'!A21:AP。A21:AP21は1行だけなので、データ行まで含めてください。月替わりでタブ名が変わる場合は取得範囲も変更します。
+                    </p>
                     <label>
                       毎日の同期時刻（日本時間）
                       <input
@@ -1894,6 +1922,40 @@ export default function SalesWorkspace({
                       日次同期を有効にする
                     </label>
                   </SalesForm>
+                  <p>
+                    保存済みの接続方式：
+                    {sales.connections.source?.authMode === "user"
+                      ? `本人認証（${data.members.find((m) => m.id === sales.connections.source?.authUserId)?.name || "接続者未設定"}）`
+                      : "サービスアカウント"}
+                  </p>
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={
+                      !admin ||
+                      busy ||
+                      !sales.connections.googleSheetsConfigured
+                    }
+                    onClick={() =>
+                      action(async () => {
+                        const result = await api<{ url: string }>(
+                          "/google/start",
+                          "POST",
+                          { sheets: true },
+                        );
+                        window.location.assign(result.url);
+                      })
+                    }
+                  >
+                    スプシ閲覧を許可して接続
+                  </button>
+                  <p className="sales-muted">
+                    先に接続設定を保存してから認証してください。認証後に再度この画面を開き「保存済み接続をプレビュー」で確認します。あなたの閲覧許可：
+                    {sales.connections.googleSheetsConnected
+                      ? "取得済み"
+                      : "未取得"}
+                    。会社のAPI利用制限がある場合は管理者の許可が必要です。
+                  </p>
                   <button
                     className="button"
                     disabled={
@@ -1990,7 +2052,7 @@ export default function SalesWorkspace({
                     </button>
                   </div>
                   <p className="sales-muted">
-                    サービスアカウントのJSONをサーバーに設定し、対象スプシをそのメールアドレスに「閲覧者」で共有してください。キーをこの画面に貼り付ける必要はありません。
+                    本人認証では外部アカウントへの共有は不要です。サービスアカウント方式を選ぶ場合だけ、サーバーに設定したアカウントへスプシを閲覧共有してください。「資格情報設定あり」は接続成功を意味しません。
                   </p>
                 </section>
               </div>

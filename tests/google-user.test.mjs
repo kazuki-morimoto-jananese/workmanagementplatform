@@ -22,7 +22,7 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
     id: "one",
     email: "one@company.test",
     active: true,
-    role: "member",
+    role: "admin",
   };
   store.saveUser(user);
   let identity = user.email,
@@ -30,10 +30,32 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
       "openid email https://www.googleapis.com/auth/documents.readonly",
     tokenCalls = 0;
   const calls = [];
+  let sheetStatus = 200,
+    revokeDuringRead = false,
+    headerOnly = false;
   const service = createGoogleUserService(store, {
     fetchImpl: async (url, init) => {
       calls.push({ url, init });
       assert.equal(init.redirect, "manual");
+      if (url.startsWith("https://sheets.googleapis.com/v4/spreadsheets/")) {
+        assert.equal(init.headers.Authorization, "Bearer fake-access-only");
+        assert.equal(
+          new URL(url).searchParams.get("valueRenderOption"),
+          "FORMATTED_VALUE",
+        );
+        if (revokeDuringRead) store.remove("googleConnections", user.id);
+        return Response.json(
+          {
+            values: headerOnly
+              ? [["アカウントID", "アカウント名"]]
+              : [
+                  ["アカウントID", "アカウント名", "今週Gトレ"],
+                  ["abc", "Example", "0"],
+                ],
+          },
+          { status: sheetStatus },
+        );
+      }
       if (url === "https://oauth2.googleapis.com/token") {
         tokenCalls++;
         const body = new URLSearchParams(init.body);
@@ -205,6 +227,50 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
       googleUserStatus(store, { ...user, id: "other" }).calendar,
       false,
     );
+    const source = {
+      authMode: "user",
+      authUserId: user.id,
+      spreadsheetId: "sampleSheet123456",
+      range: "'Sales'!A1:C",
+    };
+    await assert.rejects(service.readSheet(source), (e) => e.status === 403);
+    const sheetsConsent = new URL(
+      (await handle("/api/google/start", "POST", user, "", { sheets: true }))
+        .data.url,
+    );
+    assert.ok(
+      sheetsConsent.searchParams.get("scope").includes("spreadsheets.readonly"),
+    );
+    assert.ok(
+      sheetsConsent.searchParams
+        .get("scope")
+        .includes("calendar.events.readonly"),
+    );
+    grantedScopes += " https://www.googleapis.com/auth/spreadsheets.readonly";
+    await handle(
+      "/api/google/callback",
+      "GET",
+      user,
+      "?state=" + sheetsConsent.searchParams.get("state") + "&code=sample",
+    );
+    assert.equal(googleUserStatus(store, user).sheets, true);
+    assert.equal((await service.readSheet(source)).values[1][2], "0");
+    await assert.rejects(
+      service.readSheet({ ...source, authUserId: "other" }),
+      (e) => e.status === 403,
+    );
+    store.saveUser({ ...user, active: false });
+    await assert.rejects(service.readSheet(source), (e) => e.status === 403);
+    store.saveUser(user);
+    headerOnly = true;
+    await assert.rejects(service.readSheet(source), /データ行/);
+    headerOnly = false;
+    sheetStatus = 403;
+    await assert.rejects(
+      service.readSheet(source),
+      (e) => e.status === 403 && /原因は確定できません/.test(e.message),
+    );
+    sheetStatus = 200;
     identity = "wrong@company.test";
     const second = new URL(
       (await handle("/api/google/start", "POST")).data.url,
@@ -219,6 +285,8 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
       (e) => e.status === 403,
     );
     assert.equal(store.get("googleConnections", user.id).email, user.email);
+    revokeDuringRead = true;
+    await assert.rejects(service.readSheet(source), (e) => e.status === 403);
     await handle("/api/google/disconnect", "POST");
     assert.equal(googleUserStatus(store, user).connected, false);
     assert.ok(calls.every((c) => c.url.startsWith("https://")));

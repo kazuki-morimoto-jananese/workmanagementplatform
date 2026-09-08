@@ -398,7 +398,7 @@ export function createApp(options = {}) {
       readDocument: googleUser.readDocument,
       ...options.minuteAdapters,
     },
-    sheetReader: options.sheetReader,
+    sheetReader: options.sheetReader || googleUser.readSheet,
     background: options.background,
   });
   const workspaceService = createWorkspaceService({

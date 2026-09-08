@@ -107,7 +107,10 @@ export async function jsonRequest(
   }
 }
 let tokenCache = null;
-export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
+export async function readGoogleSheet(
+  config,
+  { fetchImpl = fetch, getAccessToken } = {},
+) {
   if (
     !/^[a-zA-Z0-9_-]{15,180}$/.test(config.spreadsheetId || "") ||
     typeof config.range !== "string" ||
@@ -115,10 +118,12 @@ export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
     config.range.length > 250
   )
     throw problem("スプレッドシートIDと取得範囲を確認してください。");
-  const token = await googleToken(
-    "https://www.googleapis.com/auth/spreadsheets.readonly",
-    fetchImpl,
-  );
+  const token = getAccessToken
+    ? await getAccessToken()
+    : await googleToken(
+        "https://www.googleapis.com/auth/spreadsheets.readonly",
+        fetchImpl,
+      );
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(config.spreadsheetId)}/values/${encodeURIComponent(config.range)}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`;
   const result = await jsonRequest(
     url,
@@ -127,6 +132,10 @@ export async function readGoogleSheet(config, { fetchImpl = fetch } = {}) {
   );
   if (!Array.isArray(result.values) || !result.values.length)
     throw problem("取得範囲が空です。見出し行を含む範囲を指定してください。");
+  if (result.values.length < 2)
+    throw problem(
+      "見出しだけでデータ行がありません。A21:AP21は1行だけです。例：'プランニング_9/7'!A21:AP のようにデータ行まで含めてください。",
+    );
   return { values: result.values };
 }
 export async function googleToken(scope, fetchImpl = fetch) {

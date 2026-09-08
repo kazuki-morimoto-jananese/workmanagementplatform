@@ -43,11 +43,9 @@ export async function runWorkspaceBrowserChecks(page) {
   await expect(panel.locator(".organization-list")).toContainText(
     "営業グループ",
   );
-  await panel
-    .getByLabel("親組織", { exact: true })
-    .selectOption({
-      label: "テスト株式会社 / 人材事業部 / 営業第一部 / 営業グループ",
-    });
+  await panel.getByLabel("親組織", { exact: true }).selectOption({
+    label: "テスト株式会社 / 人材事業部 / 営業第一部 / 営業グループ",
+  });
   await panel.getByLabel("チーム名", { exact: true }).fill("第一チーム");
   await panel.getByRole("button", { name: "保存", exact: true }).click();
   await expect(panel.locator(".organization-list")).toContainText("第一チーム");
@@ -221,4 +219,35 @@ export async function runWorkspaceBrowserChecks(page) {
   console.log(
     "Workspace browser passed: organization master, self department, cross-department projects, multiple task owners, account linkage, audit and backup.",
   );
+  await page
+    .getByLabel("スプシの接続方式", { exact: true })
+    .selectOption("user");
+  await page
+    .getByRole("button", { name: "接続設定を保存", exact: true })
+    .click();
+  await expect(page.getByText(/保存済みの接続方式：本人認証/)).toBeVisible();
+  assert.equal(
+    (await request("/sales/bootstrap")).connections.source.authUserId,
+    data.user.id,
+  );
+  await page.reload();
+  await page
+    .getByRole("button", { name: "営業・数字管理", exact: true })
+    .click();
+  await page.getByRole("button", { name: "データ連携", exact: true }).click();
+  await expect(
+    page.getByLabel("スプシの接続方式", { exact: true }),
+  ).toHaveValue("user");
+  await expect(
+    page.getByRole("button", { name: "保存済み接続をプレビュー", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByLabel("スプシの接続方式", { exact: true })
+    .selectOption("service");
+  await page
+    .getByRole("button", { name: "接続設定を保存", exact: true })
+    .click();
+  await expect(
+    page.getByText("保存済みの接続方式：サービスアカウント", { exact: true }),
+  ).toBeVisible();
 }

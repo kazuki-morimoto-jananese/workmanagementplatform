@@ -131,6 +131,8 @@ export type SalesMinute = {
   version: number;
 };
 export type SalesSource = {
+  authMode?: "user" | "service";
+  authUserId?: string;
   syncTime?: string;
   lastScheduledAttemptAt?: string;
   name: string;
@@ -179,6 +181,8 @@ export type SalesData = {
     warnings: string[];
   }[];
   connections: {
+    googleSheetsConfigured?: boolean;
+    googleSheetsConnected?: boolean;
     driveConfigured?: boolean;
     sheetsConfigured: boolean;
     geminiConfigured: boolean;
