@@ -582,3 +582,30 @@ textarea:focus {
     animation: none !important;
   }
 }
+dialog.google-onboarding {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 28px;
+  border: 1px solid #c4d2dc;
+  border-radius: 20px;
+  background: #fff;
+  color: #263d4c;
+  overflow: auto;
+  box-shadow: 0 24px 80px #132b3b40;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+dialog.google-onboarding::backdrop {
+  background: #132b3b99;
+}
+dialog.google-onboarding h2 {
+  color: #183c35;
+}
+dialog.google-onboarding p,
+dialog.google-onboarding ul {
+  margin-bottom: 16px;
+}
+dialog.google-onboarding ul {
+  padding-left: 22px;
+}

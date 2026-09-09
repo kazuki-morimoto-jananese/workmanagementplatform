@@ -60,6 +60,7 @@ import type {
   Task,
 } from "./types";
 import SalesWorkspace from "./SalesWorkspace";
+import { GoogleOnboarding } from "./GoogleOnboarding";
 import { taskAssignees, organizationName, type OrgUnit } from "./types";
 import {
   OrganizationPanel,
@@ -850,6 +851,7 @@ export default function App() {
   };
   return (
     <div className="app-shell">
+      <GoogleOnboarding key={data.user.id} api={api} email={data.user.email} />
       <aside className={`sidebar ${mobile ? "is-open" : ""}`}>
         <div className="sidebar-brand">
           <Logo />

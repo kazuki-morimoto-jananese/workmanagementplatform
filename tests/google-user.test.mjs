@@ -6,6 +6,74 @@ import {
   createGoogleUserService,
   googleUserStatus,
 } from "../server/google-user.mjs";
+test("Google onboarding skips fully authorized members and defers only the current member", async () => {
+  const names = [
+    "GOOGLE_OAUTH_CLIENT_ID",
+    "GOOGLE_OAUTH_CLIENT_SECRET",
+    "GOOGLE_OAUTH_REDIRECT_URI",
+  ];
+  const old = names.map((k) => process.env[k]);
+  const store = openStoreDatabase(new DatabaseSync(":memory:"));
+  try {
+    names.forEach((k) => {
+      process.env[k] = "test-only";
+    });
+    const user = {
+      id: "new-member",
+      role: "member",
+      active: true,
+      email: "member@example.test",
+    };
+    store.saveUser(user);
+    assert.equal(googleUserStatus(store, user).onboardingPending, true);
+    store.put("googleConnections", {
+      id: user.id,
+      scopes: ["https://www.googleapis.com/auth/documents.readonly"],
+    });
+    assert.equal(googleUserStatus(store, user).onboardingPending, true);
+    const scopes = [
+      "documents.readonly",
+      "calendar.events.readonly",
+      "spreadsheets.readonly",
+      "drive.metadata.readonly",
+      "drive.file",
+    ].map((s) => "https://www.googleapis.com/auth/" + s);
+    store.put("googleConnections", { id: user.id, scopes });
+    assert.equal(googleUserStatus(store, user).onboardingPending, false);
+    store.remove("googleConnections", user.id);
+    const service = createGoogleUserService(store, {
+      fetchImpl: () => {
+        throw new Error("No network expected");
+      },
+    });
+    let status;
+    await service.handle({
+      path: "/api/google/onboarding/defer",
+      method: "POST",
+      user,
+      body: { userId: "other" },
+      send: (s) => {
+        status = s;
+      },
+    });
+    assert.equal(status, 200);
+    assert.equal(googleUserStatus(store, user).onboardingPending, false);
+    assert.equal(
+      googleUserStatus(store, { id: "other" }).onboardingPending,
+      true,
+    );
+    delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+    assert.equal(
+      googleUserStatus(store, { id: "other" }).onboardingPending,
+      false,
+    );
+  } finally {
+    names.forEach((k, i) => {
+      if (old[i] === undefined) delete process.env[k];
+      else process.env[k] = old[i];
+    });
+  }
+});
 test("Google user consent uses PKCE, binds state to member, encrypts tokens and reads document tabs", async () => {
   const names = [
     "GOOGLE_OAUTH_CLIENT_ID",

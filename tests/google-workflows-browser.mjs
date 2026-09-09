@@ -120,13 +120,11 @@ export async function runGoogleWorkflowBrowserChecks(page) {
       pending: 0,
       warnings: [],
     });
-    const collection = page
-      .locator("details")
-      .filter({
-        has: page.locator("summary", {
-          hasText: "顧客のフォルダーから議事録を収集",
-        }),
-      });
+    const collection = page.locator("details").filter({
+      has: page.locator("summary", {
+        hasText: "顧客のフォルダーから議事録を収集",
+      }),
+    });
     await collection.locator("summary").click();
     await expect(
       collection.getByLabel("検索元フォルダー（1行に1URL・10件まで）"),
@@ -204,6 +202,39 @@ export async function runGoogleWorkflowBrowserChecks(page) {
       fullPage: true,
     });
     await page.keyboard.press("Escape");
+    let deferred = false;
+    await mock("**/api/google/status", () => ({
+      configured: true,
+      onboardingPending: !deferred,
+    }));
+    await mock("**/api/google/onboarding/defer", () => {
+      deferred = true;
+      return { ok: true };
+    });
+    await page.reload();
+    const onboarding = page.getByRole("dialog", {
+      name: "仕事で使うGoogleアカウントを接続",
+    });
+    await expect(onboarding).toBeVisible();
+    await expect(
+      onboarding.getByRole("button", {
+        name: "Googleに接続して必要な権限を許可",
+      }),
+    ).toBeEnabled();
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
+    await onboarding
+      .getByRole("button", { name: "後で設定してWorknestを使う" })
+      .click();
+    await expect(onboarding).toHaveCount(0);
+    assert.equal(deferred, true);
+    await page.reload();
+    await page.getByRole("heading", { name: /おかえりなさい、/ }).waitFor();
+    await expect(onboarding).toHaveCount(0);
     console.log(
       "Google workflow browser passed: Drive selection, calendar minute save, report preview/create/history links and mobile. External Google APIs mocked.",
     );

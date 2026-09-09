@@ -74,7 +74,20 @@ export function googleUserStatus(store, user) {
     serviceAccount = googleCredentials().client_email;
   } catch {}
   const connection = store.get("googleConnections", user.id);
+  const complete =
+    configured() &&
+    [
+      "https://www.googleapis.com/auth/documents.readonly",
+      calendarScope,
+      sheetsScope,
+      workflowScopes.driveSearch,
+      workflowScopes.documentsWrite,
+    ].every((s) => connection?.scopes?.includes(s));
   return {
+    onboardingPending:
+      configured() &&
+      !complete &&
+      !store.get("googleOnboarding", user.id)?.deferredAt,
     configured: configured(),
     connected: configured() && !!connection,
     email: connection?.email || "",
@@ -280,6 +293,11 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
     if (!path.startsWith("/api/google/")) return false;
     if (path === "/api/google/status" && method === "GET") {
       send(200, googleUserStatus(store, user));
+      return true;
+    }
+    if (path === "/api/google/onboarding/defer" && method === "POST") {
+      store.put("googleOnboarding", { id: user.id, deferredAt: now() });
+      send(200, { ok: true });
       return true;
     }
     if (path === "/api/google/disconnect" && method === "POST") {
