@@ -1,6 +1,6 @@
 {
   "name": "worknest",
-  "version": "2.12.0",
+  "version": "2.12.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -25,6 +25,11 @@
     "test:cloud": "node .browser-check.mjs --sales --cloud",
     "restore:export": "node scripts/restore-export.mjs",
     "connect:cloud": "node scripts/connect-cloud.mjs"
+  },
+  "overrides": {
+    "miniflare": {
+      "sharp": "0.35.4"
+    }
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
