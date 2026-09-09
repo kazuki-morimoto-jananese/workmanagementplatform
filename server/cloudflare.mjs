@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import { httpServerHandler } from "cloudflare:node";
 import { createApp } from "./index.mjs";
 import { openStoreDatabase } from "./store.mjs";
+import { isDailyStorageQuota, nextDailyReset, storageQuotaResponse } from "./cloud-quota.mjs";
 
 // The existing domain model uses synchronous SQLite transactions. Durable Objects
 // supplies the same isolation without relying on a temporary Worker filesystem.
@@ -79,11 +80,15 @@ export class CompanyWorkspace extends DurableObject {
     return this.handler.fetch(request, this.env, this.ctx);
   }
   async alarm() {
-    this.ensureApp();
+    let next = Date.now() + 60_000;
     try {
+      this.ensureApp();
       await this.app.tick();
+    } catch (error) {
+      if (!isDailyStorageQuota(error)) throw error;
+      next = nextDailyReset();
     } finally {
-      await this.ctx.storage.setAlarm(Date.now() + 60_000);
+      await this.ctx.storage.setAlarm(next);
     }
   }
 }
@@ -93,7 +98,13 @@ export default {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
       const id = env.WORKSPACE.idFromName("company-v1");
-      return env.WORKSPACE.get(id).fetch(request);
+      try {
+        return await env.WORKSPACE.get(id).fetch(request);
+      } catch (error) {
+        const response = storageQuotaResponse(error);
+        if (response) return response;
+        throw error;
+      }
     }
     return env.ASSETS.fetch(request);
   },
