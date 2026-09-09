@@ -54,6 +54,13 @@ import { OrganizationSelect, AuditHistory } from "./WorkspaceAdmin";
 import { MinuteNumbers } from "./MinuteNumbers";
 import { SalesImportFile } from "./SalesImportFile";
 import { IntegrationHealth } from "./IntegrationHealth";
+import {
+  DriveFilePicker,
+  CalendarMinuteFlow,
+  MinuteGoogleActions,
+  SalesSlides,
+  type GoogleApi,
+} from "./GoogleWorkflows";
 import { CrmWorkspace } from "./CrmWorkspace";
 import { PersonalTargets } from "./PersonalTargets";
 import { OrganizationSummary } from "./OrganizationSummary";
@@ -466,6 +473,7 @@ export default function SalesWorkspace({
     [mappingDirty, setMappingDirty] = useState(false),
     [busy, setBusy] = useState(false),
     [seedReviews, setSeedReviews] = useState(false);
+  const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null);
   const admin = data.user.role === "admin";
   const [connectionPreview, setConnectionPreview] = useState<
     | (ImportPreview & { sourceName: string; range: string; checkedAt: string })
@@ -1047,6 +1055,14 @@ export default function SalesWorkspace({
           )}
           {tab === "summary" && (
             <>
+              {effectiveScope !== "demo" && (
+                <SalesSlides
+                  key={month + week}
+                  api={api}
+                  month={month}
+                  week={week}
+                />
+              )}
               <GroupDashboard
                 key={month + effectiveScope}
                 api={api}
@@ -1446,6 +1462,16 @@ export default function SalesWorkspace({
           )}
           {tab === "minutes" && (
             <>
+              {effectiveScope !== "demo" && (
+                <CalendarMinuteFlow
+                  api={api}
+                  accounts={scopedAccounts}
+                  onSaved={async (m) => {
+                    await load();
+                    setDialog({ type: "minuteDetail", id: m.id });
+                  }}
+                />
+              )}
               <div className="sales-section-title">
                 <div>
                   <h2>議事録ライブラリ</h2>
@@ -1530,6 +1556,9 @@ export default function SalesWorkspace({
                       {sales.accounts.find((a) => a.id === m.accountId)?.name}
                     </small>
                     <h3>{m.title}</h3>
+                    {m.sourceChanged && !m.supersededBy && (
+                      <span className="pill peach">Google原文に更新あり</span>
+                    )}
                     <p>{m.summary?.overview || m.text}</p>
                     <footer>
                       <CalendarDays size={13} />
@@ -1907,11 +1936,24 @@ export default function SalesWorkspace({
                       <input
                         name="spreadsheetId"
                         aria-label="スプレッドシートID"
-                        defaultValue={sales.connections.source?.spreadsheetId}
+                        value={
+                          selectedSheetId ??
+                          sales.connections.source?.spreadsheetId ??
+                          ""
+                        }
+                        onChange={(e) => setSelectedSheetId(e.target.value)}
                         placeholder="URLの /d/ と /edit の間のID"
                         required
                       />
                     </label>
+                    <DriveFilePicker
+                      api={api}
+                      type="spreadsheet"
+                      onSelect={(f) => {
+                        setSelectedSheetId(f.id);
+                        setConnectionPreview(null);
+                      }}
+                    />
                     <label>
                       取得範囲（見出し行を含む）
                       <input
@@ -2467,6 +2509,7 @@ export default function SalesWorkspace({
       )}
       {dialog?.type === "minute" && (
         <MinuteForm
+          api={api}
           accounts={scopedAccounts}
           sales={sales}
           selected={dialog.accountId}
@@ -2583,6 +2626,14 @@ export default function SalesWorkspace({
                   : "要約を作成・再実行"}
               </button>
             </div>
+            {effectiveScope !== "demo" && (
+              <MinuteGoogleActions
+                key={selectedMinute.id}
+                api={api}
+                minute={selectedMinute}
+                onChanged={load}
+              />
+            )}
             {selectedMinute.googleFileId && (
               <p className="sales-muted">
                 最終取得：
@@ -3336,12 +3387,14 @@ function ReviewDialog({
   );
 }
 function MinuteForm({
+  api,
   accounts,
   sales,
   selected,
   close,
   save,
 }: {
+  api: GoogleApi;
   accounts: SalesAccount[];
   sales: SalesData;
   selected?: string;
@@ -3351,6 +3404,7 @@ function MinuteForm({
   const [body, setBody] = useState(""),
     [fileError, setFileError] = useState("");
   const [importGoogle, setImportGoogle] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState("");
   return (
     <SalesModal title="議事録を保存" close={close} wide>
       <SalesForm
@@ -3431,11 +3485,21 @@ function MinuteForm({
           {importGoogle ? "GoogleドキュメントURL" : "関連資料URL"}
           <input
             name="sourceUrl"
+            value={sourceUrl}
+            onChange={(e) => setSourceUrl(e.target.value)}
             type="url"
             required={importGoogle}
             placeholder="https://docs.google.com/…"
           />
         </label>
+        <DriveFilePicker
+          api={api}
+          type="document"
+          onSelect={(f) => {
+            setSourceUrl(f.url);
+            setImportGoogle(true);
+          }}
+        />
         {!importGoogle && (
           <>
             <label className="sales-file-input">

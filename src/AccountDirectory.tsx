@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { DriveFilePicker } from "./GoogleWorkflows";
 type Api = <T = any>(
   path: string,
   method?: string,
@@ -281,6 +282,14 @@ export function AccountDirectory({
             基本情報と月別金額を別範囲で取得します。見出し行を含め、終わりの行番号は空欄にしてください。新規行も取得します。対象月と元シートの月見出しを検証します。
           </p>
           <fieldset className="dashboard-settings" disabled={busy}>
+            <DriveFilePicker
+              api={api}
+              type="spreadsheet"
+              onSelect={(f) => {
+                setDraft({ ...draft, spreadsheetId: f.id });
+                setPreview(null);
+              }}
+            />
             <label>
               対象月
               <input

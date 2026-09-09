@@ -372,6 +372,28 @@ test("sales workflows preserve manual forecasts, history, raw metrics and task l
         );
         assert.equal(duplicate.status, 200);
         assert.equal(duplicate.body.id, task.id);
+        const revised = {
+          ...minute,
+          id: "revision-google-test",
+          rootMinuteId: minute.id,
+          previousMinuteId: minute.id,
+          version: 1,
+          taskLinks: [],
+        };
+        app.store.put("salesMinutes", revised);
+        const revisedTask = await call(
+          `/sales/minutes/${revised.id}/tasks`,
+          "POST",
+          {
+            actionIndex: 0,
+            version: 1,
+            projectId: project.id,
+            assigneeId: account.ownerId,
+          },
+        );
+        assert.equal(revisedTask.status, 200);
+        assert.equal(revisedTask.body.id, task.id);
+        app.store.remove("salesMinutes", revised.id);
         const updated = await call("/tasks/" + task.id, "PATCH", {
           version: task.version,
           status: "done",

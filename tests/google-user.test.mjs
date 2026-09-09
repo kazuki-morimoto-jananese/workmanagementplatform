@@ -285,6 +285,37 @@ test("Google user consent uses PKCE, binds state to member, encrypts tokens and 
       (e) => e.status === 403,
     );
     assert.equal(store.get("googleConnections", user.id).email, user.email);
+    const workflowConsent = new URL(
+      (
+        await handle("/api/google/start", "POST", user, "", {
+          driveSearch: true,
+          documentsWrite: true,
+          calendar: true,
+          sheets: true,
+        })
+      ).data.url,
+    );
+    assert.ok(
+      workflowConsent.searchParams
+        .get("scope")
+        .includes("drive.metadata.readonly"),
+    );
+    assert.ok(
+      workflowConsent.searchParams
+        .get("scope")
+        .includes("https://www.googleapis.com/auth/drive.file"),
+    );
+    assert.ok(
+      workflowConsent.searchParams
+        .get("scope")
+        .includes("calendar.events.readonly"),
+    );
+    assert.ok(
+      !workflowConsent.searchParams
+        .get("scope")
+        .split(" ")
+        .includes("https://www.googleapis.com/auth/drive"),
+    );
     revokeDuringRead = true;
     await assert.rejects(service.readSheet(source), (e) => e.status === 403);
     await handle("/api/google/disconnect", "POST");

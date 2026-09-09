@@ -504,6 +504,7 @@ export function createSalesService({
     }
   }
   function tick() {
+    if (!stopped) background(minuteService.tick());
     if (!stopped) background(dashboardService.tick());
     if (!stopped) background(directoryService.tick());
     const source = store.get("salesSettings", "source");
@@ -754,6 +755,23 @@ export function createSalesService({
     }
     if (p === "/sales/minutes" && method === "POST") {
       account(body.accountId);
+      if (body.calendarEventId) {
+        check(
+          typeof body.calendarEventId === "string" &&
+            body.calendarEventId.length <= 1024,
+          "予定IDが不正です。",
+        );
+        const existing = store
+          .all("salesMinutes")
+          .find(
+            (m) =>
+              m.calendarEventId === body.calendarEventId &&
+              (m.calendarOwnerId || m.createdBy) === user.id &&
+              m.accountId === body.accountId &&
+              !m.supersededBy,
+          );
+        if (existing) return reply(200, existing);
+      }
       const document = await minuteService.document(body, user);
       check(store.user(user.id)?.active, "ログインし直してください。", 401);
       if (document) {
@@ -801,6 +819,8 @@ export function createSalesService({
         id: id(),
         accountId: body.accountId,
         opportunityId: text(body.opportunityId, 100),
+        calendarEventId: text(body.calendarEventId, 1024),
+        calendarOwnerId: body.calendarEventId ? user.id : "",
         title: text(body.title, 200),
         meetingDate: dateValue(body.meetingDate, true),
         targetMonth: monthValue(
@@ -858,12 +878,31 @@ export function createSalesService({
       );
       const action = minute.summary?.actions[body.actionIndex];
       check(action, "アクション案が見つかりません。");
+      const signature = (a) =>
+        a
+          ? [a.title, a.evidence]
+              .map((v) =>
+                String(v || "")
+                  .normalize("NFKC")
+                  .replace(/\s/g, ""),
+              )
+              .join("\u0000")
+          : "";
       const existing = store
         .all("tasks")
         .find(
           (t) =>
-            t.minuteId === minute.id &&
-            t.minuteActionIndex === body.actionIndex,
+            (t.minuteId === minute.id &&
+              t.minuteActionIndex === body.actionIndex) ||
+            (minute.rootMinuteId &&
+              t.minuteId &&
+              (store.get("salesMinutes", t.minuteId)?.rootMinuteId ||
+                t.minuteId) === minute.rootMinuteId &&
+              signature(
+                store.get("salesMinutes", t.minuteId)?.summary?.actions?.[
+                  t.minuteActionIndex
+                ],
+              ) === signature(action)),
         );
       if (existing) {
         check(

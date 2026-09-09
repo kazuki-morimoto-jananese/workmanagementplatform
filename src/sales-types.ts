@@ -88,6 +88,11 @@ export type SalesOpportunity = {
   updatedAt: string;
 };
 export type SalesMinute = {
+  sourceChanged?: boolean;
+  sourceCheckedAt?: string;
+  sourceCheckError?: string;
+  watchEnabled?: boolean;
+  calendarEventId?: string;
   reviewWeek?: string;
   googleFileId?: string;
   googleModifiedTime?: string;

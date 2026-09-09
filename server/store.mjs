@@ -60,6 +60,7 @@ export function openStoreDatabase(db) {
     "salesDashboardSnapshots",
     "salesDirectorySettings",
     "salesDirectoryAccounts",
+    "googleArtifacts",
     "orgUnits",
     "settings",
   ]);

@@ -5,6 +5,7 @@ import {
   createDecipheriv,
 } from "node:crypto";
 import { digest, now } from "./store.mjs";
+import { createGoogleWorkflows, workflowScopes } from "./google-workflows.mjs";
 import {
   jsonRequest,
   googleCredentials,
@@ -79,6 +80,12 @@ export function googleUserStatus(store, user) {
     email: connection?.email || "",
     calendar: configured() && !!connection?.scopes?.includes(calendarScope),
     sheets: configured() && !!connection?.scopes?.includes(sheetsScope),
+    driveSearch:
+      configured() &&
+      !!connection?.scopes?.includes(workflowScopes.driveSearch),
+    documentsWrite:
+      configured() &&
+      !!connection?.scopes?.includes(workflowScopes.documentsWrite),
     serviceAccount,
     redirectUri: process.env.GOOGLE_OAUTH_REDIRECT_URI || "",
   };
@@ -144,6 +151,7 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
     }
   }
   async function access(user) {
+    fail(store.user(user.id)?.active, "ログインし直してください。", 401);
     fail(
       configured(),
       "Google本人認証の初期設定が必要です。管理者はGoogle接続手順を確認してください。",
@@ -262,6 +270,12 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
       sourceUrl: "https://docs.google.com/document/d/" + fileId + "/edit",
     };
   }
+  const workflows = createGoogleWorkflows({
+    store,
+    access,
+    fetchImpl,
+    status: googleUserStatus,
+  });
   async function handle({ path, method, user, url, send, body = {} }) {
     if (!path.startsWith("/api/google/")) return false;
     if (path === "/api/google/status" && method === "GET") {
@@ -274,6 +288,8 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
       send(200, { ok: true });
       return true;
     }
+    if (await workflows.handle({ path, method, user, url, send, body }))
+      return true;
     fail(
       configured(),
       "Google本人認証の初期設定が未完了です。管理者はconnect-google.cmdを実行してください。",
@@ -351,7 +367,14 @@ export function createGoogleUserService(store, { fetchImpl = fetch } = {}) {
             : "") +
           (body.sheets === true || googleUserStatus(store, user).sheets
             ? " " + sheetsScope
-            : ""),
+            : "") +
+          Object.entries(workflowScopes)
+            .filter(
+              ([name]) =>
+                body[name] === true || googleUserStatus(store, user)[name],
+            )
+            .map(([, value]) => " " + value)
+            .join(""),
         include_granted_scopes: "true",
         state,
         access_type: "offline",

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { GooglePermission } from "./GoogleWorkflows";
 type GoogleStatus = {
   configured: boolean;
   connected: boolean;
@@ -6,6 +7,8 @@ type GoogleStatus = {
   serviceAccount: string;
   redirectUri: string;
   calendar: boolean;
+  driveSearch: boolean;
+  documentsWrite: boolean;
 };
 export function IntegrationHealth({
   api,
@@ -120,9 +123,30 @@ export function IntegrationHealth({
           を実行してください。設定後、このボタンから本人が許可できます。
         </p>
       )}
+      <h3>Drive検索・文書と資料の作成</h3>
+      <GooglePermission
+        api={api}
+        capability="workflows"
+        label="Google業務連携をまとめて許可"
+      />
+      <p>
+        Drive検索：{google?.driveSearch ? "許可済み" : "未許可"} / Google
+        Docs・Slides作成：{google?.documentsWrite ? "許可済み" : "未許可"}
+        。追加許可後も会社のAPI制限が適用されます。
+      </p>
+      <GooglePermission
+        api={api}
+        capability="driveSearch"
+        label="Drive検索を許可して接続"
+      />
+      <GooglePermission
+        api={api}
+        capability="documentsWrite"
+        label="Googleの利用を許可（文書・資料の作成）"
+      />
       <h3>自分のGoogleカレンダー</h3>
       <p>
-        今から14日間の予定を最大100件表示します。本人だけが閲覧でき、予定はWorknestに保存されません。Google
+        今から14日間の予定を最大100件表示します。この一覧は本人だけが閲覧でき、予定一覧は保存しません。議事録タブから選択して保存した商談予定の情報はチーム内で共有されます。Google
         CloudでCalendar APIの有効化が必要です。
       </p>
       <button

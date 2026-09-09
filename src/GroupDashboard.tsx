@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { DriveFilePicker } from "./GoogleWorkflows";
 type Column = { label: string; index: number };
 type Block = {
   labelRange?: string;
@@ -199,6 +200,11 @@ function DashboardContent({
             対象月ごとに保存します。取得範囲は見出し行を含めます。行名を別範囲にする場合、固定表は1列、その他は担当・グループの2列を指定し、数値と同じ開始・終了行にします。列位置は行名＋数値を連結した左端から1です。
           </p>
           <fieldset disabled={busy} className="dashboard-settings">
+            <DriveFilePicker
+              api={api}
+              type="spreadsheet"
+              onSelect={(f) => setDraft({ ...draft, spreadsheetId: f.id })}
+            />
             <label>
               共通のスプレッドシートURL / ID
               <input

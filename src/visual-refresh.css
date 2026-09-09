@@ -1,4 +1,107 @@
 /* Visual hierarchy: retain the existing layout and interaction model. */
+.google-workflow-panel {
+  padding: 20px;
+  margin-bottom: 18px;
+}
+.google-workflow-panel > summary {
+  font-weight: 700;
+  color: #245440;
+  cursor: pointer;
+}
+.google-workflow-panel p,
+.google-file-results p,
+.google-minute-actions p {
+  color: #506570;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.google-workflow-panel label {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+.google-inline-fields {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.google-inline-fields input {
+  flex: 1;
+  min-width: 130px;
+}
+.google-file-picker {
+  margin: 10px 0;
+}
+.google-file-results {
+  border: 1px solid #cad9df;
+  background: #f1f6f8;
+  padding: 15px;
+  border-radius: 10px;
+}
+.google-file-results ul {
+  list-style: none;
+  padding: 0;
+  max-height: 300px;
+  overflow: auto;
+}
+.google-file-results li button {
+  width: 100%;
+  padding: 12px;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  background: white;
+  color: #294752;
+  border-bottom: 1px solid #dae5e9;
+  overflow-wrap: anywhere;
+}
+.google-file-results li button:hover {
+  background: #e3efe8;
+}
+.google-file-results small {
+  color: #5d727c;
+}
+.google-minute-actions {
+  padding: 15px;
+  background: #eff5f2;
+  border: 1px solid #cfdfd5;
+  border-radius: 10px;
+  margin: 15px 0;
+}
+.google-minute-actions .button,
+.google-minute-actions .pill {
+  margin: 4px;
+}
+.google-report-preview {
+  margin: 18px 0;
+}
+.google-report-preview details {
+  padding: 12px;
+  border-bottom: 1px solid #d1dfe4;
+}
+.google-report-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.8;
+}
+.google-artifact-list {
+  padding-left: 18px;
+}
+.google-artifact-list li {
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+.google-artifact-list a {
+  display: inline-block;
+  margin: 0 8px;
+  color: #216086;
+  text-decoration: underline;
+}
+.google-artifact-list small {
+  display: block;
+}
 :root {
   color: #24343e;
   background: #eef2f5;

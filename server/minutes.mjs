@@ -28,6 +28,7 @@ export function createMinuteService({
 }) {
   let working = false,
     stopped = false;
+  let checking = false;
   const pending = [];
   function apply(minute, user, reviewVersion, automatic = false) {
     return store.transaction(() => {
@@ -249,6 +250,68 @@ export function createMinuteService({
   }
   return {
     enqueue,
+    async tick() {
+      if (checking || stopped) return;
+      const minute = store
+        .all("salesMinutes")
+        .find(
+          (m) =>
+            m.watchEnabled &&
+            m.googleFileId &&
+            !m.supersededBy &&
+            !["pending", "processing"].includes(m.status) &&
+            !["pending", "processing"].includes(m.extraction?.status) &&
+            (!m.sourceCheckAttemptAt ||
+              Date.now() - Date.parse(m.sourceCheckAttemptAt) >= 86400000),
+        );
+      if (!minute) return;
+      checking = true;
+      const actor = store.user(minute.watchUserId);
+      try {
+        await auditContext.run({ actorId: actor?.id || "system" }, async () => {
+          const attempted = {
+            ...minute,
+            sourceCheckAttemptAt: now(),
+            version: minute.version + 1,
+          };
+          store.put("salesMinutes", attempted);
+          try {
+            fail(
+              actor?.active && store.get("googleConnections", actor.id),
+              "更新確認の接続者が無効です。本人がGoogleに再接続してください。",
+              403,
+            );
+            const document = await readDocument(minute.sourceUrl, actor);
+            const fresh = store.get("salesMinutes", minute.id);
+            if (
+              stopped ||
+              fresh.version !== attempted.version ||
+              !store.user(actor.id)?.active
+            )
+              return;
+            store.put("salesMinutes", {
+              ...fresh,
+              sourceChanged: document.text !== fresh.text,
+              sourceCheckedAt: now(),
+              sourceCheckError: "",
+              version: fresh.version + 1,
+            });
+          } catch (e) {
+            const fresh = store.get("salesMinutes", minute.id);
+            if (fresh.version === attempted.version)
+              store.put("salesMinutes", {
+                ...fresh,
+                sourceCheckError: e.status
+                  ? e.message
+                  : "更新確認に失敗しました。",
+                version: fresh.version + 1,
+              });
+          }
+        });
+      } finally {
+        checking = false;
+      }
+    },
     start() {
       stopped = false;
       for (const m of store.all("salesMinutes"))
@@ -266,7 +329,7 @@ export function createMinuteService({
     },
     async handle({ p, method, body, user, reply }) {
       const match = p.match(
-        /^\/sales\/minutes\/([^/]+)\/(refresh|extract|apply-numbers)$/,
+        /^\/sales\/minutes\/([^/]+)\/(watch|check-source|refresh|extract|apply-numbers)$/,
       );
       if (match && method === "POST") {
         const minute = store.get("salesMinutes", match[1]);
@@ -284,6 +347,24 @@ export function createMinuteService({
           "Googleドキュメントから取得した議事録ではありません。",
         );
         fail(!minute.supersededBy, "最新版の議事録から更新してください。", 409);
+        if (match[2] === "watch") {
+          fail(typeof body.enabled === "boolean", "自動確認の設定が不正です。");
+          if (body.enabled)
+            fail(
+              store.get("googleConnections", user.id),
+              "Google本人認証に接続してください。",
+              403,
+            );
+          const updated = {
+            ...minute,
+            watchEnabled: body.enabled,
+            watchUserId: body.enabled ? user.id : "",
+            sourceCheckAttemptAt: "",
+            version: minute.version + 1,
+          };
+          store.put("salesMinutes", updated);
+          return reply(200, { minute: updated });
+        }
         fail(
           !["pending", "processing"].includes(minute.status) &&
             !["pending", "processing"].includes(minute.extraction?.status),
@@ -298,11 +379,28 @@ export function createMinuteService({
           "取得中に議事録が更新されました。再読み込みしてください。",
           409,
         );
+        if (match[2] === "check-source") {
+          const updated = {
+            ...fresh,
+            sourceChanged: document.text !== minute.text,
+            sourceCheckedAt: now(),
+            sourceCheckError: "",
+            version: fresh.version + 1,
+          };
+          store.put("salesMinutes", updated);
+          return reply(200, {
+            minute: updated,
+            changed: updated.sourceChanged,
+          });
+        }
         if (document.text === minute.text) {
           const updated = {
             ...fresh,
             lastSyncedAt: now(),
             googleModifiedTime: document.modifiedTime,
+            sourceChanged: false,
+            sourceCheckedAt: now(),
+            sourceCheckError: "",
             version: fresh.version + 1,
           };
           store.put("salesMinutes", updated);
@@ -317,6 +415,9 @@ export function createMinuteService({
           text: document.text,
           title: document.title.slice(0, 200),
           googleModifiedTime: document.modifiedTime,
+          sourceChanged: false,
+          sourceCheckedAt: now(),
+          sourceCheckError: "",
           lastSyncedAt: now(),
           createdAt: now(),
           createdBy: user.id,
