@@ -1,0 +1,167 @@
+.prep-workspace {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.prep-workspace .panel {
+  padding: 24px;
+  min-width: 0;
+}
+.prep-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.prep-fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.prep-workspace label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.prep-workspace .checkbox-label {
+  display: flex;
+  align-items: flex-start;
+}
+.prep-workspace textarea,
+.prep-workspace input,
+.prep-workspace select {
+  max-width: 100%;
+  min-width: 0;
+}
+.prep-workspace input[type="file"] {
+  width: 100%;
+}
+.prep-metrics {
+  display: flex;
+  gap: 32px;
+  padding: 20px 0;
+}
+.prep-metrics dd {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 4px 0;
+  color: #215e4f;
+}
+.prep-table {
+  overflow-x: auto;
+  width: 100%;
+  margin: 20px 0;
+}
+.prep-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.prep-table th,
+.prep-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #dae2e6;
+  text-align: right;
+  white-space: nowrap;
+}
+.prep-table th:first-child,
+.prep-table td:first-child {
+  text-align: left;
+  white-space: normal;
+  min-width: 130px;
+}
+.prep-table thead {
+  background: #e8f0ed;
+  color: #214c43;
+}
+.prep-table tbody tr:nth-child(even) {
+  background: #f4f7f8;
+}
+.kw-report {
+  margin-top: 24px;
+  border-top: 2px solid #2d6656;
+  padding-top: 20px;
+  min-width: 0;
+}
+.kw-report p,
+.prep-workspace article {
+  overflow-wrap: anywhere;
+}
+.kw-report .button {
+  margin: 4px 8px 4px 0;
+}
+.prep-finding {
+  background: #f0f5f2;
+  border-left: 4px solid #467867;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.kw-report footer {
+  font-size: 12px;
+  color: #536670;
+  margin-top: 24px;
+}
+.prep-print-only,
+#worknest-printout {
+  display: none;
+}
+@media (max-width: 760px) {
+  .prep-grid {
+    grid-template-columns: 1fr;
+  }
+  .prep-workspace .panel {
+    padding: 16px;
+  }
+  .prep-metrics {
+    gap: 20px;
+  }
+  .prep-metrics dd {
+    font-size: 20px;
+  }
+}
+@media print {
+  body:has(#worknest-printout) > *:not(#worknest-printout) {
+    display: none !important;
+  }
+  #worknest-printout {
+    display: block !important;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font: 11pt sans-serif;
+    color: #172b36;
+  }
+  #worknest-printout .prep-no-print {
+    display: none !important;
+  }
+  #worknest-printout .prep-print-only {
+    display: block !important;
+  }
+  #worknest-printout .prep-table {
+    overflow: visible;
+  }
+  #worknest-printout table {
+    font-size: 9pt;
+    table-layout: fixed;
+  }
+  #worknest-printout th,
+  #worknest-printout td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    padding: 6px;
+  }
+  #worknest-printout tr,
+  #worknest-printout .prep-finding {
+    break-inside: avoid;
+  }
+  #worknest-printout thead {
+    display: table-header-group;
+  }
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+}

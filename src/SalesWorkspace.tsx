@@ -1,4 +1,5 @@
 import { DriveCollection } from "./DriveCollection";
+import { MeetingPreparation } from "./MeetingPreparation";
 import {
   createContext,
   useContext,
@@ -904,6 +905,11 @@ export default function SalesWorkspace({
           { id: "reviews", label: "週次ヨミ", icon: TrendingUp },
           { id: "opportunities", label: "商談", icon: BriefcaseBusiness },
           { id: "minutes", label: "議事録", icon: FileText },
+          {
+            id: "preparation",
+            label: "商談準備・分析",
+            icon: BriefcaseBusiness,
+          },
           { id: "crm", label: "顧客・リード", icon: BriefcaseBusiness },
           { id: "connections", label: "データ連携", icon: FolderSync },
         ].map((t) => (
@@ -921,6 +927,19 @@ export default function SalesWorkspace({
         ))}
       </nav>
       {tab === "crm" && <CrmWorkspace api={api} data={data} />}
+      {tab === "preparation" && (
+        <MeetingPreparation
+          api={api}
+          data={data}
+          sales={sales}
+          accounts={scopedAccounts}
+          month={month}
+          onRefresh={async () => {
+            await load();
+            await onTasksChanged();
+          }}
+        />
+      )}
       {error && (
         <div className="form-error" role="alert">
           {error}

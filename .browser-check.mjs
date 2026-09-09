@@ -11,6 +11,7 @@ import { runWorkspaceBrowserChecks } from "./tests/workspace-browser.mjs";
 import { runCrmBrowserChecks } from "./tests/crm-browser.mjs";
 import { runExcelBrowserChecks } from "./tests/excel-browser.mjs";
 import { runGoogleWorkflowBrowserChecks } from "./tests/google-workflows-browser.mjs";
+import { runMeetingPrepBrowserChecks } from "./tests/meeting-prep-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
 const cloud = process.argv.includes("--cloud");
@@ -248,6 +249,7 @@ try {
     await runExcelBrowserChecks(page);
     await runCrmBrowserChecks(page);
     await runGoogleWorkflowBrowserChecks(page);
+    await runMeetingPrepBrowserChecks(page);
   }
   await page.getByRole("button", { name: "ホーム", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });

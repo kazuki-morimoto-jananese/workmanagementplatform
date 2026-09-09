@@ -61,6 +61,9 @@ export function openStoreDatabase(db) {
     "salesDirectorySettings",
     "salesDirectoryAccounts",
     "googleArtifacts",
+    "meetingPrepDrafts",
+    "kwAnalyses",
+    "kwTaskLinks",
     "orgUnits",
     "settings",
   ]);

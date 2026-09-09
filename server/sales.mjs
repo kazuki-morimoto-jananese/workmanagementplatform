@@ -3,6 +3,7 @@ import { seedSalesDemo, demoPeriods } from "./sales-demo.mjs";
 import { createMinuteService } from "./minutes.mjs";
 import { createDashboardService } from "./sales-dashboard.mjs";
 import { createDirectoryService } from "./account-directory.mjs";
+import { createMeetingPrepService } from "./meeting-prep.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
 import { syncTime, scheduledSyncDue } from "./sales-schedule.mjs";
 import { withImportedForecast, savePersonalTargets } from "./sales-targets.mjs";
@@ -89,6 +90,10 @@ export function createSalesService({
   const queue = [];
   const dashboardService = createDashboardService({ store, sheetReader });
   const directoryService = createDirectoryService({ store, sheetReader });
+  const meetingPrepService = createMeetingPrepService({
+    store,
+    createLinkedTask,
+  });
   const account = (aid) => {
     const a = store.get("salesAccounts", aid);
     check(a, "アカウントが見つかりません。", 404);
@@ -523,6 +528,8 @@ export function createSalesService({
     };
     const admin = () =>
       check(user.role === "admin", "管理者のみ操作できます。", 403);
+    if (await meetingPrepService({ p, method, body, user, reply, url }))
+      return true;
     if (await directoryService.handle({ p, method, body, user, reply, url }))
       return true;
     if (await dashboardService.handle({ p, method, body, user, reply, url }))
