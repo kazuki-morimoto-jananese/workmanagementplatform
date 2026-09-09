@@ -2,6 +2,7 @@ import { digest, now } from "./store.mjs";
 import { jsonRequest } from "./sales-integrations.mjs";
 import { dashboardGroups } from "./sales-dashboard.mjs";
 import { withImportedForecast } from "./sales-targets.mjs";
+import { createDriveCollection } from "./drive-collection.mjs";
 
 export const workflowScopes = {
   driveSearch: "https://www.googleapis.com/auth/drive.metadata.readonly",
@@ -433,8 +434,11 @@ export function createGoogleWorkflows({ store, access, fetchImpl, status }) {
       busy.delete(user.id);
     }
   }
+  const collection = createDriveCollection({ store, request, requireScope });
   return {
     async handle({ path, method, user, url, send, body }) {
+      if (await collection({ path, method, user, url, send, body }))
+        return true;
       if (path === "/api/google/files" && method === "GET") {
         requireScope(user, "driveSearch");
         const type = url.searchParams.get("type");

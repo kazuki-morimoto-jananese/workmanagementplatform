@@ -1,3 +1,4 @@
+import { DriveCollection } from "./DriveCollection";
 import {
   createContext,
   useContext,
@@ -1462,6 +1463,16 @@ export default function SalesWorkspace({
           )}
           {tab === "minutes" && (
             <>
+              {effectiveScope !== "demo" && (
+                <DriveCollection
+                  api={api}
+                  accounts={scopedAccounts}
+                  onSaved={async (m) => {
+                    await load();
+                    setDialog({ type: "minuteDetail", id: m.id });
+                  }}
+                />
+              )}
               {effectiveScope !== "demo" && (
                 <CalendarMinuteFlow
                   api={api}

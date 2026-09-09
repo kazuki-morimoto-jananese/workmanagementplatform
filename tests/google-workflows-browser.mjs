@@ -101,6 +101,65 @@ export async function runGoogleWorkflowBrowserChecks(page) {
       page.getByLabel("スプレッドシートID", { exact: true }),
     ).toHaveValue("gws-test-sheet");
     await page.getByRole("button", { name: "議事録", exact: true }).click();
+    await mock("**/api/google/collection/settings", { roots: ["test-root"] });
+    await mock("**/api/google/collection/start", { scanId: "scan" });
+    await mock("**/api/google/collection/next", {
+      files: [
+        {
+          id: "doc-candidate",
+          name: "定例",
+          path: "顧客 / 定例",
+          match: "顧客",
+          modifiedTime: "2026-09-09T00:00:00Z",
+          existingId: "",
+          url: "https://docs.google.com/document/d/doc-candidate/edit",
+        },
+      ],
+      done: true,
+      visited: 1,
+      pending: 0,
+      warnings: [],
+    });
+    const collection = page
+      .locator("details")
+      .filter({
+        has: page.locator("summary", {
+          hasText: "顧客のフォルダーから議事録を収集",
+        }),
+      });
+    await collection.locator("summary").click();
+    await expect(
+      collection.getByLabel("検索元フォルダー（1行に1URL・10件まで）"),
+    ).toHaveValue("https://drive.google.com/drive/folders/test-root");
+    await collection
+      .getByLabel("議事録を収集するアカウント", { exact: true })
+      .selectOption("account-browser");
+    await collection
+      .getByRole("button", { name: "保存して候補を検索" })
+      .click();
+    await collection.getByLabel("取り込む議事録").selectOption("doc-candidate");
+    await expect(
+      collection.getByRole("button", {
+        name: "選択した議事録を全員に共有して取り込む",
+      }),
+    ).toBeDisabled();
+    await collection
+      .getByLabel("会議日（原文を確認して指定）")
+      .fill("2026-09-08");
+    await expect(
+      collection.getByRole("button", {
+        name: "選択した議事録を全員に共有して取り込む",
+      }),
+    ).toBeEnabled();
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
+    await page.setViewportSize({ width: 1440, height: 1050 });
+    await collection.locator("summary").click();
     await page
       .locator("summary")
       .filter({ hasText: "商談予定から議事録を作成" })
