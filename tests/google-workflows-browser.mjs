@@ -126,6 +126,7 @@ export async function runGoogleWorkflowBrowserChecks(page) {
       }),
     });
     await collection.locator("summary").click();
+    await collection.getByLabel("収集する範囲").selectOption("single");
     await expect(
       collection.getByLabel("検索元フォルダー（1行に1URL・10件まで）"),
     ).toHaveValue("https://drive.google.com/drive/folders/test-root");

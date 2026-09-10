@@ -147,7 +147,11 @@ export async function runWorkspaceBrowserChecks(page) {
     .fill("顧客・複数担当者の横断タスク");
   await modal
     .getByLabel("対象の営業アカウント", { exact: true })
-    .selectOption("account-browser");
+    .fill("account-browser");
+  await modal
+    .getByRole("option")
+    .filter({ hasText: "account-browser" })
+    .click();
   await modal
     .getByRole("group", { name: "担当者を複数選択" })
     .getByLabel(data.user.name, { exact: true })

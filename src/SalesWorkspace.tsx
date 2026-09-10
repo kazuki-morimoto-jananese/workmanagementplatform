@@ -1,4 +1,5 @@
 import { DriveCollection } from "./DriveCollection";
+import { accountInOwnerFilter } from "./account-ownership";
 import { MeetingPreparation } from "./MeetingPreparation";
 import {
   createContext,
@@ -460,6 +461,7 @@ export default function SalesWorkspace({
     [week, setWeek] = useState(weekMonday()),
     [search, setSearch] = useState(""),
     [minuteSearch, setMinuteSearch] = useState(""),
+    [minuteOwner, setMinuteOwner] = useState("me"),
     [owner, setOwner] = useState("all"),
     [accountScope, setAccountScope] = useState("active"),
     [dataScope, setDataScope] = useState("auto"),
@@ -699,6 +701,12 @@ export default function SalesWorkspace({
     .filter(
       (m) =>
         scopedIds.has(m.accountId) &&
+        accountInOwnerFilter(
+          sales.accounts.find((a) => a.id === m.accountId)!,
+          minuteOwner,
+          data.user,
+          data.members,
+        ) &&
         (effectiveScope !== "demo" ||
           (m.targetMonth || m.meetingDate.slice(0, 7)) === month),
     )
@@ -1486,6 +1494,11 @@ export default function SalesWorkspace({
                 <DriveCollection
                   api={api}
                   accounts={scopedAccounts}
+                  user={data.user}
+                  members={data.members}
+                  onBatchSaved={async () => {
+                    await load();
+                  }}
                   onSaved={async (m) => {
                     await load();
                     setDialog({ type: "minuteDetail", id: m.id });
@@ -1527,6 +1540,33 @@ export default function SalesWorkspace({
               </div>
               <div className="sales-minute-search">
                 <label>
+                  議事録の担当者
+                  <select
+                    aria-label="議事録の担当者"
+                    value={minuteOwner}
+                    onChange={(e) => setMinuteOwner(e.target.value)}
+                  >
+                    <option value="me">自分の担当アカウント</option>
+                    <option value="all">すべての担当者</option>
+                    {data.members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                    {[
+                      ...new Set(
+                        scopedAccounts
+                          .filter((a) => !a.ownerId && a.ownerName)
+                          .map((a) => a.ownerName),
+                      ),
+                    ].map((name) => (
+                      <option key={name} value={"name:" + name}>
+                        {name}（マスタ担当名）
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   <Search size={17} />
                   <input
                     type="search"
@@ -1538,7 +1578,7 @@ export default function SalesWorkspace({
                 </label>
                 <span aria-live="polite">
                   {visibleMinutes.length} / {sales.minutes.length} 件 ·
-                  商談日の新しい順
+                  アカウント別・各アカウント内は商談日の新しい順
                 </span>
                 {minuteSearch && (
                   <button
@@ -1549,60 +1589,113 @@ export default function SalesWorkspace({
                   </button>
                 )}
               </div>
-              <div className="sales-minute-grid">
-                {visibleMinutes.map((m) => (
-                  <button
-                    className="panel sales-minute-card"
-                    key={m.id}
-                    onClick={() =>
-                      setDialog({
-                        type: "minuteDetail",
-                        id: m.id,
-                        accountId: m.accountId,
-                      })
-                    }
-                  >
-                    <header>
-                      <span className="project-icon sage">
-                        <FileText size={21} />
-                      </span>
-                      <span
-                        className={`pill ${m.status === "failed" ? "peach" : "neutral"}`}
-                      >
+              {[...new Set(visibleMinutes.map((m) => m.accountId))]
+                .sort((a, b) =>
+                  (
+                    sales.accounts.find((v) => v.id === a)?.name || a
+                  ).localeCompare(
+                    sales.accounts.find((v) => v.id === b)?.name || b,
+                    "ja",
+                  ),
+                )
+                .map((accountId) => (
+                  <section className="minute-account-group" key={accountId}>
+                    <h2>
+                      {sales.accounts.find((a) => a.id === accountId)?.name}{" "}
+                      <small>
                         {
-                          (
-                            {
-                              saved: "原文保存済み",
-                              pending: "要約待機中",
-                              processing: "要約中",
-                              completed: "要約済み",
-                              failed: "要約エラー",
-                            } as const
-                          )[m.status]
+                          visibleMinutes.filter(
+                            (m) => m.accountId === accountId,
+                          ).length
                         }
-                      </span>
-                    </header>
-                    <small>
-                      {sales.accounts.find((a) => a.id === m.accountId)?.name}
-                    </small>
-                    <h3>{m.title}</h3>
-                    {m.sourceChanged && !m.supersededBy && (
-                      <span className="pill peach">Google原文に更新あり</span>
-                    )}
-                    <p>{m.summary?.overview || m.text}</p>
-                    <footer>
-                      <CalendarDays size={13} />
-                      {m.meetingDate}
-                      <span>{m.taskLinks.length} タスク化</span>
-                    </footer>
-                  </button>
+                        件
+                      </small>
+                    </h2>
+                    <div className="sales-minute-grid">
+                      {visibleMinutes
+                        .filter((m) => m.accountId === accountId)
+                        .map((m) => (
+                          <button
+                            className="panel sales-minute-card"
+                            key={m.id}
+                            onClick={() =>
+                              setDialog({
+                                type: "minuteDetail",
+                                id: m.id,
+                                accountId: m.accountId,
+                              })
+                            }
+                          >
+                            <header>
+                              <span className="project-icon sage">
+                                <FileText size={21} />
+                              </span>
+                              <span
+                                className={`pill ${m.status === "failed" ? "peach" : "neutral"}`}
+                              >
+                                {
+                                  (
+                                    {
+                                      saved: "原文保存済み",
+                                      pending: "要約待機中",
+                                      processing: "要約中",
+                                      completed: "要約済み",
+                                      failed: "要約エラー",
+                                    } as const
+                                  )[m.status]
+                                }
+                              </span>
+                            </header>
+                            <small>
+                              {
+                                sales.accounts.find((a) => a.id === m.accountId)
+                                  ?.name
+                              }
+                            </small>
+                            <h3>{m.title}</h3>
+                            {m.sourceChanged && !m.supersededBy && (
+                              <span className="pill peach">
+                                Google原文に更新あり
+                              </span>
+                            )}
+                            <div className="minute-card-summary">
+                              <section>
+                                <h4>サマリー</h4>
+                                <p>
+                                  {m.summary?.overview ||
+                                    "要約はまだありません。詳細から原文を確認できます。"}
+                                </p>
+                              </section>
+                              <section>
+                                <h4>決定事項</h4>
+                                {m.summary?.decisions?.length ? (
+                                  <ul>
+                                    {m.summary.decisions.map((d, i) => (
+                                      <li key={i}>{d}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p>決定事項の記録はありません</p>
+                                )}
+                              </section>
+                            </div>
+                            <footer>
+                              <CalendarDays size={13} />
+                              {m.meetingDate}
+                              <span>{m.taskLinks.length} タスク化</span>
+                            </footer>
+                          </button>
+                        ))}
+                    </div>
+                  </section>
                 ))}
-              </div>
               {sales.minutes.length > 0 && !visibleMinutes.length && (
                 <div className="sales-empty panel">
                   <Search size={28} />
                   <h2>一致する議事録がありません</h2>
-                  <p>顧客名や本文のキーワードを変えて検索してください。</p>
+                  <p>
+                    担当者の選択や検索語を変更してください。担当未紐づけのアカウントは「すべての担当者」で確認できます。
+                  </p>
                 </div>
               )}
               {!sales.minutes.length && (

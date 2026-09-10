@@ -63,6 +63,9 @@ export async function runSalesDemoBrowserChecks(page) {
     await page.getByRole("button", { name: "商談", exact: true }).click();
     await expect(page.locator(".sales-deal")).toHaveCount(6);
     await page.getByRole("button", { name: "議事録", exact: true }).click();
+    await page
+      .getByLabel("議事録の担当者", { exact: true })
+      .selectOption("all");
     await expect(page.locator(".sales-minute-card")).toHaveCount(6);
     assert.ok(
       (await page.locator(".sales-minute-card").first().textContent()).includes(

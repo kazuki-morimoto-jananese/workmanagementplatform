@@ -1,3 +1,4 @@
+import { AccountSearch } from "./AccountSearch";
 import {
   useEffect,
   useRef,
@@ -2780,22 +2781,12 @@ function TaskDialog({
             onChange={(e) => update("title", e.target.value)}
           />
         </label>
-        <label>
-          対象の営業アカウント
-          <select
-            aria-label="対象の営業アカウント"
-            value={draft.accountId || ""}
-            disabled={!!task?.minuteId}
-            onChange={(e) => update("accountId", e.target.value)}
-          >
-            <option value="">紐づけなし</option>
-            {data.salesAccounts?.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}（{a.id}）
-              </option>
-            ))}
-          </select>
-        </label>
+        <AccountSearch
+          accounts={data.salesAccounts || []}
+          value={draft.accountId || ""}
+          disabled={!!task?.minuteId}
+          onChange={(value) => update("accountId", value)}
+        />
         <fieldset className="assignee-choices">
           <legend>担当者を複数選択</legend>
           {data.members

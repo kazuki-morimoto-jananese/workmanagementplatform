@@ -12,6 +12,68 @@ test("Drive collection matches normalized names and never empty names", () => {
   assert.equal(accountMatch(["株式会社"], "会社 / 定例"), "");
   assert.equal(accountMatch(["別会社"], "ABC / 定例"), "");
 });
+test("Multi-account collection traverses a folder once and exposes ambiguous matches without choosing an account", async () => {
+  const values = new Map();
+  let reads = 0,
+    requests = 0;
+  const store = {
+    get: (k, id) => values.get(k + id),
+    put: (k, v) => values.set(k + v.id, v),
+    all: () => {
+      reads++;
+      return [];
+    },
+  };
+  store.put("salesAccounts", { id: "a", name: "ABC" });
+  store.put("salesAccounts", { id: "b", name: "ABC 採用" });
+  store.put("driveCollectionSettings", { id: "u", roots: ["root"] });
+  const service = createDriveCollection({
+    store,
+    requireScope: () => {},
+    request: async (_, url) => {
+      requests++;
+      if (new URL(url).pathname.endsWith("/root"))
+        return { name: "営業", mimeType: "application/vnd.google-apps.folder" };
+      return {
+        files: [
+          {
+            id: "doc",
+            name: "ABC採用 2026/09/10",
+            mimeType: "application/vnd.google-apps.document",
+          },
+          {
+            id: "doc2",
+            name: "ABC定例",
+            mimeType: "application/vnd.google-apps.document",
+          },
+        ],
+      };
+    },
+  });
+  async function call(route, body) {
+    let out;
+    await service({
+      path: "/api/google/collection/" + route,
+      method: "POST",
+      user: { id: "u" },
+      body,
+      send: (_, v) => (out = v),
+    });
+    return out;
+  }
+  await assert.rejects(call("start", { accountIds: ["missing"] }));
+  const start = await call("start", { accountIds: ["a", "b", "a"] });
+  const result = await call("next", { scanId: start.scanId });
+  assert.equal(requests, 2);
+  assert.equal(reads, 1);
+  assert.equal(result.files.length, 2);
+  assert.deepEqual(
+    result.files[0].accounts.map((a) => a.accountId),
+    ["a", "b"],
+  );
+  assert.equal(result.files[1].accounts.length, 1);
+  assert.equal(result.done, true);
+});
 test("Drive collection scopes settings and scans to user, traverses pages, reports denied folders and deduplicates documents", async () => {
   const records = new Map();
   const store = {

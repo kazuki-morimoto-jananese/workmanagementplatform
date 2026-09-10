@@ -55,8 +55,18 @@ export function createDriveCollection({ store, request, requireScope }) {
         "検索処理中です。完了後に再検索してください。",
         409,
       );
-      const account = store.get("salesAccounts", body.accountId);
-      check(account, "アカウントを選択してください。");
+      const accountIds = body.accountIds || [body.accountId];
+      check(
+        Array.isArray(accountIds) &&
+          accountIds.length > 0 &&
+          accountIds.length <= 500 &&
+          accountIds.every(validId),
+        "アカウントを1〜500件選択してください。",
+      );
+      const accounts = [...new Set(accountIds)].map((id) =>
+        store.get("salesAccounts", id),
+      );
+      check(accounts.every(Boolean), "アカウントを選択してください。");
       const roots = store.get("driveCollectionSettings", user.id)?.roots || [];
       check(roots.length, "検索元フォルダーを登録してください。");
       const aliases = String(body.aliases || "")
@@ -69,8 +79,11 @@ export function createDriveCollection({ store, request, requireScope }) {
       );
       const scan = {
         id: crypto.randomUUID(),
-        accountId: account.id,
-        names: [account.name, ...aliases],
+        accounts: accounts.map((account) => ({
+          id: account.id,
+          name: account.name,
+          names: [account.name, ...(accounts.length === 1 ? aliases : [])],
+        })),
         queue: roots.map((id) => ({ id, path: "", depth: 0 })),
         seen: [],
         docs: [],
@@ -97,6 +110,8 @@ export function createDriveCollection({ store, request, requireScope }) {
       s.busy = true;
       const files = [];
       try {
+        // Read existing minutes once per page, not once per candidate.
+        let existingMinutes;
         // One folder page per call keeps requests bounded and permits cancellation.
         const item = s.queue[0];
         if (item) {
@@ -156,25 +171,37 @@ export function createDriveCollection({ store, request, requireScope }) {
                 s.warnings.push(
                   "ショートカットは検索対象外です。リンク先フォルダーを検索元に追加してください。",
                 );
-              const match =
-                f.mimeType === docType && accountMatch(s.names, fullPath);
-              if (match && !s.docs.includes(f.id)) {
+              const matches =
+                f.mimeType === docType
+                  ? s.accounts
+                      .map((a) => ({
+                        accountId: a.id,
+                        accountName: a.name,
+                        match: accountMatch(a.names, fullPath),
+                      }))
+                      .filter((a) => a.match)
+                  : [];
+              if (matches.length && !s.docs.includes(f.id)) {
                 s.docs.push(f.id);
-                const existing = store
-                  .all("salesMinutes")
-                  .find(
-                    (m) =>
-                      m.googleFileId === f.id &&
-                      m.accountId === s.accountId &&
-                      !m.supersededBy,
-                  );
+                existingMinutes ??= store.all("salesMinutes");
+                const options = matches.map((a) => ({
+                  ...a,
+                  existingId:
+                    existingMinutes.find(
+                      (m) =>
+                        m.googleFileId === f.id &&
+                        m.accountId === a.accountId &&
+                        !m.supersededBy,
+                    )?.id || "",
+                }));
                 files.push({
                   id: f.id,
                   name: f.name,
                   path: fullPath,
-                  match,
+                  match: matches[0].match,
+                  accounts: options,
                   modifiedTime: f.modifiedTime,
-                  existingId: existing?.id || "",
+                  existingId: options.length === 1 ? options[0].existingId : "",
                   url: `https://docs.google.com/document/d/${f.id}/edit`,
                 });
               }

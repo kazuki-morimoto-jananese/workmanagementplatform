@@ -1,0 +1,141 @@
+.minute-account-group {
+  margin: 28px 0;
+}
+.minute-account-group > h2 {
+  font-size: 18px;
+  color: #223c4b;
+  border-left: 4px solid #477b69;
+  padding: 8px 14px;
+  background: #edf3f0;
+  border-radius: 4px;
+}
+.minute-account-group > h2 small {
+  font-size: 12px;
+  margin-left: 10px;
+  font-weight: 400;
+}
+.minute-account-group .sales-minute-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.minute-account-group .sales-minute-card {
+  width: 100%;
+  min-width: 0;
+}
+.minute-card-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.minute-card-summary section {
+  min-width: 0;
+}
+.minute-card-summary h4 {
+  color: #275647;
+  font-size: 13px;
+  margin: 12px 0 8px;
+}
+.minute-card-summary p,
+.minute-card-summary li {
+  color: #384e5c;
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.minute-card-summary p {
+  margin: 0;
+}
+.minute-card-summary ul {
+  padding-left: 18px;
+  margin: 0;
+}
+.minute-card-summary li + li {
+  margin-top: 8px;
+}
+.collection-account-choices {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #ccd9d1;
+  border-radius: 8px;
+}
+.collection-account-choices label {
+  margin-bottom: 8px;
+}
+.collection-candidate {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #c7d6d0;
+  border-radius: 10px;
+  min-width: 0;
+}
+.collection-candidate legend {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.collection-candidate p {
+  overflow-wrap: anywhere;
+}
+.collection-candidate label {
+  display: block;
+  margin: 12px 0;
+}
+.collection-candidate input:not([type="checkbox"]),
+.collection-candidate select {
+  width: 100%;
+}
+.account-search {
+  position: relative;
+  min-width: 0;
+}
+.account-search > label {
+  display: block;
+  margin-bottom: 8px;
+}
+.account-search > input {
+  width: 100%;
+}
+.account-search-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 260px;
+  overflow: auto;
+  background: white;
+  border: 1px solid #aac1b5;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px #203e4920;
+}
+.account-search-options [role="option"] {
+  padding: 10px 14px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.account-search-options [aria-selected="true"],
+.account-search-options [role="option"]:hover {
+  background: #e8f1ec;
+}
+.account-search-options small {
+  display: block;
+  color: #617480;
+  margin-top: 4px;
+}
+.account-search-options p {
+  padding: 10px;
+  font-size: 12px;
+}
+@media (max-width: 1000px) {
+  .minute-account-group .sales-minute-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .minute-card-summary {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
