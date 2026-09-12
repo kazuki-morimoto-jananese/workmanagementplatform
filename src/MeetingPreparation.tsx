@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { AccountSearch } from "./AccountSearch";
+import {
+  suggestPlacementMapping,
+  normalizePlacementRows,
+  placementFields,
+  placementLabels,
+  type PlacementMapping,
+} from "./placement-analysis";
+import { PlacementTables } from "./PlacementTables";
 import "./meeting-preparation.css";
 import type { Data } from "./types";
 import type { SalesAccount, SalesData } from "./sales-types";
@@ -18,7 +26,8 @@ type InputFile = {
   sheets: { name: string; rows: string[][] }[];
   selected: number;
   header: number;
-  mapping: Mapping;
+  mapping: Mapping &
+    Partial<Pick<PlacementMapping, "date" | "campaign" | "campaignName">>;
 };
 const labels: Record<string, string> = {
   keyword: "キーワード",
@@ -44,11 +53,17 @@ function FilePanel({
   label,
   value,
   onChange,
+  kind = "keyword",
 }: {
   label: string;
   value: InputFile | null;
   onChange: (v: InputFile | null) => void;
+  kind?: "keyword" | "placement";
 }) {
+  const columnFields = kind === "placement" ? placementFields : fields;
+  const columnLabels = kind === "placement" ? placementLabels : labels;
+  const mappingFor =
+    kind === "placement" ? suggestPlacementMapping : suggestMapping;
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const worker = useRef<Worker | null>(null);
@@ -117,7 +132,7 @@ function FilePanel({
           sheets,
           selected: 0,
           header: 0,
-          mapping: suggestMapping(sheets[0].rows[0]),
+          mapping: mappingFor(sheets[0].rows[0]),
         });
     } catch (e) {
       if (gen === generation.current)
@@ -132,7 +147,7 @@ function FilePanel({
         ...value,
         selected,
         header,
-        mapping: suggestMapping(value.sheets[selected].rows[header] || []),
+        mapping: mappingFor(value.sheets[selected].rows[header] || []),
       });
   }
   return (
@@ -194,12 +209,12 @@ function FilePanel({
           <details open>
             <summary>列の対応を確認</summary>
             <div className="form-grid">
-              {fields.map((k) => (
+              {columnFields.map((k) => (
                 <label key={k}>
-                  {labels[k]}
+                  {columnLabels[k]}
                   <select
-                    aria-label={label + labels[k]}
-                    value={value.mapping[k]}
+                    aria-label={label + columnLabels[k]}
+                    value={value.mapping[k] ?? -1}
                     onChange={(e) =>
                       onChange({
                         ...value,
@@ -213,7 +228,7 @@ function FilePanel({
                     <option value={-1}>
                       {k === "company"
                         ? "全行を自社として扱う"
-                        : k === "impression"
+                        : ["impression", "campaign", "campaignName"].includes(k)
                           ? "未提供"
                           : "選択してください"}
                     </option>
@@ -254,7 +269,7 @@ export function MeetingPreparation({
   return (
     <section className="prep-workspace">
       <div className="panel">
-        <h2>商談準備・KW分析</h2>
+        <h2>商談準備・データ分析</h2>
         <p>前回の商談と今回の数字をつなぎ、次に確認することを整理します。</p>
         <AccountSearch
           label="商談準備の対象アカウント"
@@ -288,6 +303,9 @@ function PrepAccount({
   month: string;
   onRefresh: () => Promise<unknown>;
 }) {
+  const [analysisKind, setAnalysisKind] = useState<"keyword" | "placement">(
+    "keyword",
+  );
   const [agenda, setAgenda] = useState(""),
     [version, setVersion] = useState(0),
     [history, setHistory] = useState<
@@ -446,7 +464,30 @@ function PrepAccount({
           )}
         </section>
       </div>
+      <section className="panel">
+        <label>
+          分析するデータ
+          <select
+            aria-label="分析するデータ"
+            value={analysisKind}
+            onChange={(e) => {
+              setAnalysisKind(e.target.value as "keyword" | "placement");
+              setHistoric(null);
+            }}
+          >
+            <option value="keyword">KWレポート</option>
+            <option value="placement">
+              LINEバイト・配信面レポート（自社）
+            </option>
+          </select>
+        </label>
+        <p>
+          切り替えると未保存のファイル・分析はリセットされます。保存済みの分析は下の履歴から開けます。
+        </p>
+      </section>
       <KwAnalysis
+        key={analysisKind}
+        kind={analysisKind}
         {...{ api, data, account, onRefresh }}
         onSaved={async () => {
           const r = await api("/sales/preparation" + query);
@@ -497,13 +538,17 @@ function KwAnalysis({
   account,
   onSaved,
   onRefresh,
+  kind,
 }: {
   api: GoogleApi;
   data: Data;
   account: SalesAccount;
   onSaved: () => Promise<void>;
   onRefresh: () => Promise<unknown>;
+  kind: "keyword" | "placement";
 }) {
+  const placement = kind === "placement";
+  const [granularity, setGranularity] = useState<"daily" | "monthly">("daily");
   const [a, setA] = useState<InputFile | null>(null),
     [b, setB] = useState<InputFile | null>(null),
     [own, setOwn] = useState(""),
@@ -516,7 +561,9 @@ function KwAnalysis({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [savedId, setSavedId] = useState(""),
-    [title, setTitle] = useState("KW期間比較");
+    [title, setTitle] = useState(
+      placement ? "LINEバイト・配信面期間比較" : "KW期間比較",
+    );
   const worker = useRef<Worker | null>(null);
   const saveRequest = useRef({ payload: "", id: "" });
   useEffect(() => () => worker.current?.terminate(), []);
@@ -544,12 +591,17 @@ function KwAnalysis({
     setError("");
     try {
       if (!a || !b) throw new Error("両期間のファイルを選択してください。");
-      const before = normalizeRows(
-          a.sheets[a.selected].rows,
-          a.mapping,
-          a.header,
-        ),
-        after = normalizeRows(b.sheets[b.selected].rows, b.mapping, b.header);
+      const normalize = (f: InputFile) =>
+        placement
+          ? normalizePlacementRows(
+              f.sheets[f.selected].rows,
+              f.mapping as PlacementMapping,
+              f.header,
+              granularity,
+            )
+          : normalizeRows(f.sheets[f.selected].rows, f.mapping, f.header);
+      const before = normalize(a),
+        after = normalize(b);
       const r = await new Promise<KwReport>((resolve, reject) => {
         const w = new Worker(new URL("./kw.worker.ts", import.meta.url), {
           type: "module",
@@ -572,6 +624,8 @@ function KwAnalysis({
           reject(new Error("分析処理に失敗しました。"));
         };
         w.postMessage({
+          kind,
+          granularity,
           before,
           after,
           own,
@@ -597,16 +651,44 @@ function KwAnalysis({
   }
   return (
     <section className="panel">
-      <h3>KWデータから分析・提案を作成</h3>
+      <h3>
+        {placement
+          ? "LINEバイト・配信面データから分析・提案を作成"
+          : "KWデータから分析・提案を作成"}
+      </h3>
       <p>
-        CSV（UTF-8）または.xlsx。1ファイル5MB・1万行まで。自社1社＋競合4社、円・件の実数を使用します。元ファイルを外部AIへ送信しません。
+        CSV（UTF-8）または.xlsx。1ファイル5MB・1万行まで。
+        {placement
+          ? "対象アカウント1社の配信面を比較し、他アカウントは除外します。"
+          : "自社1社＋競合4社を比較します。"}
+        円・件の実数を使用し、元ファイルを外部AIへ送信しません。
       </p>
       <p>
-        各ファイルは指定した期間だけの明細にしてください。ここで日付による行の絞り込みは行いません。合計行は除いてください。
+        {placement
+          ? "配信面・日付・消化額・クリック・CVの列を指定してください。指定期間とアカウントで絞り込み、日次／月次を混ぜずに比較します。LINEのみのファイルでは全体に対する構成比を確認できないため、non-LINE・不明も含む明細を用意してください。"
+          : "各ファイルは指定した期間だけの明細にしてください。ここで日付による行の絞り込みは行いません。"}
+        合計行は除いてください。
       </p>
       <fieldset disabled={busy} className="prep-fieldset">
+        {placement && (
+          <label>
+            ファイルの集計粒度
+            <select
+              aria-label="配信面の集計粒度"
+              value={granularity}
+              onChange={(e) => {
+                setGranularity(e.target.value as "daily" | "monthly");
+                invalidate();
+              }}
+            >
+              <option value="daily">日次（日付で期間を絞り込み）</option>
+              <option value="monthly">月次（月初〜月末で比較）</option>
+            </select>
+          </label>
+        )}
         <div className="prep-grid">
           <FilePanel
+            kind={kind}
             label="期間A"
             value={a}
             onChange={(f) => {
@@ -615,6 +697,7 @@ function KwAnalysis({
             }}
           />
           <FilePanel
+            kind={kind}
             label="期間B"
             value={b}
             onChange={(f) => {
@@ -797,7 +880,8 @@ function Report({
         {r.periods.map((p) => p.from + "〜" + p.to).join(" → ")}
       </p>
       <p>
-        計算版 {r.calculationVersion} · {r.entityCount}KW · 担当者確認用ドラフト
+        計算版 {r.calculationVersion} · {r.entityCount}
+        {r.placement ? "配信面" : "KW"} · 担当者確認用ドラフト
       </p>
       <div className="prep-no-print">
         <button className="button" onClick={print}>
@@ -857,35 +941,45 @@ function Report({
         </table>
       </div>
       <p>
-        <strong>期間B：CVゼロのKWへの消化額 ¥{number(r.zeroCvCost)}</strong>
+        <strong>
+          期間B：CVゼロの{r.placement ? "配信面" : "KW"}への消化額 ¥
+          {number(r.zeroCvCost)}
+        </strong>
       </p>
-      <p>CV不明のKWはこの合計に含みません。計測状況を確認してください。</p>
-      <div className="prep-table">
-        <table>
-          <thead>
-            <tr>
-              <th>KW</th>
-              <th>消化A</th>
-              <th>消化B</th>
-              <th>CPA A</th>
-              <th>CPA B</th>
-              <th>抽出状態</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.rows.map((row) => (
-              <tr key={row.keyword}>
-                <th>{row.keyword}</th>
-                <td>{number(row.before.cost)}</td>
-                <td>{number(row.after.cost)}</td>
-                <td>{number(row.before.cpa)}</td>
-                <td>{number(row.after.cpa)}</td>
-                <td>{row.state}</td>
+      <p>
+        CV不明の{r.placement ? "配信面" : "KW"}
+        はこの合計に含みません。計測状況を確認してください。
+      </p>
+      {r.placement ? (
+        <PlacementTables report={r} />
+      ) : (
+        <div className="prep-table">
+          <table>
+            <thead>
+              <tr>
+                <th>KW</th>
+                <th>消化A</th>
+                <th>消化B</th>
+                <th>CPA A</th>
+                <th>CPA B</th>
+                <th>抽出状態</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {r.rows.map((row) => (
+                <tr key={row.keyword}>
+                  <th>{row.keyword}</th>
+                  <td>{number(row.before.cost)}</td>
+                  <td>{number(row.after.cost)}</td>
+                  <td>{number(row.before.cpa)}</td>
+                  <td>{number(row.after.cpa)}</td>
+                  <td>{row.state}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       {r.rows.some((row) => row.index.length > 0) && (
         <>
           <h3>期間Bの競合広告主比較（自社＝100）</h3>

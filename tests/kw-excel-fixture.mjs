@@ -1,6 +1,6 @@
 import { zipSync, strToU8 } from "fflate";
-export function kwExcelFixture() {
-  const rows = [
+export function kwExcelFixture(customRows, sheetName = "KW実績") {
+  const rows = customRows || [
     ["テスト用のKW実績"],
     ["keyword", "company_key", "cost", "click", "cv", "impression"],
     ["派遣", "OWN", 1000, 100, 10, 1000],
@@ -12,8 +12,7 @@ export function kwExcelFixture() {
   const files = {
     "[Content_Types].xml":
       '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
-    "xl/workbook.xml":
-      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="説明" sheetId="1" r:id="rId1"/><sheet name="KW実績" sheetId="2" r:id="rId2"/></sheets></workbook>',
+    "xl/workbook.xml": `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="説明" sheetId="1" r:id="rId1"/><sheet name="${sheetName}" sheetId="2" r:id="rId2"/></sheets></workbook>`,
     "xl/_rels/workbook.xml.rels":
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/></Relationships>',
     "xl/worksheets/sheet1.xml": sheet([["KW実績シートを選択"]]),

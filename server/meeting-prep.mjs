@@ -67,7 +67,7 @@ export function createMeetingPrepService({ store, createLinkedTask }) {
       check(
         r &&
           r.schemaVersion === 1 &&
-          r.calculationVersion === "kw-v1" &&
+          ["kw-v1", "placement-v1"].includes(r.calculationVersion) &&
           typeof r.own === "string" &&
           Array.isArray(r.rows) &&
           r.rows.length <= 100 &&
@@ -80,6 +80,61 @@ export function createMeetingPrepService({ store, createLinkedTask }) {
           Array.isArray(r.warnings),
         "分析結果の形式が不正です。",
       );
+      if (r.calculationVersion === "placement-v1") {
+        const p = r.placement;
+        const count = (v) => Number.isInteger(v) && v >= 0 && v <= 10000;
+        const category = (v) => ["LINE", "non-LINE", "UNKNOWN"].includes(v);
+        check(
+          p &&
+            ["daily", "monthly"].includes(p.granularity) &&
+            Array.isArray(p.inputCounts) &&
+            p.inputCounts.length === 2 &&
+            p.inputCounts.every(count) &&
+            Array.isArray(p.usedCounts) &&
+            p.usedCounts.length === 2 &&
+            p.usedCounts.every(
+              (v, i) =>
+                count(v) &&
+                v > 0 &&
+                v <= p.inputCounts[i] &&
+                v === r.sources[i]?.count,
+            ) &&
+            Array.isArray(p.labels) &&
+            p.labels.length <= 30 &&
+            p.labels.every(
+              (v) =>
+                v &&
+                typeof v.source === "string" &&
+                v.source.length <= 200 &&
+                category(v.category),
+            ) &&
+            Array.isArray(p.campaigns) &&
+            p.campaigns.length <= 80 &&
+            Number.isInteger(p.campaignCount) &&
+            p.campaignCount >= p.campaigns.length &&
+            p.campaignCount <= 20000 &&
+            p.campaigns.every(
+              (c) =>
+                c &&
+                typeof c.campaignId === "string" &&
+                c.campaignId.length <= 200 &&
+                typeof c.campaignName === "string" &&
+                c.campaignName.length <= 200 &&
+                category(c.category) &&
+                validTotals(c.before) &&
+                validTotals(c.after),
+            ) &&
+            r.rows.length <= 3 &&
+            r.rows.every(
+              (row) =>
+                row &&
+                category(row.keyword) &&
+                Array.isArray(row.index) &&
+                row.index.length === 0,
+            ),
+          "配信面分析の形式が不正です。",
+        );
+      } else check(!r.placement, "分析種別と結果が一致しません。");
       check(
         validTotals(r.before) &&
           validTotals(r.after) &&
@@ -110,7 +165,7 @@ export function createMeetingPrepService({ store, createLinkedTask }) {
                 ["cost", "cpc", "cvr", "cpa"].every((k) => metric(c[k])),
             ),
         ),
-        "KW比較表の形式が不正です。",
+        "分析比較表の形式が不正です。",
       );
       check(
         r.findings.every(
@@ -153,6 +208,15 @@ export function createMeetingPrepService({ store, createLinkedTask }) {
         ) && r.periods[0].to < r.periods[1].from,
         "対象期間が不正です。",
       );
+      if (r.placement?.granularity === "monthly")
+        check(
+          r.periods.every(
+            (p) =>
+              p.from.endsWith("-01") &&
+              new Date(Date.parse(p.to) + 86400000).getUTCDate() === 1,
+          ),
+          "月次データは月初〜月末の期間で指定してください。",
+        );
       const hash = digest(
         JSON.stringify([accountId, r, short(body.title, 200)]),
       );
@@ -175,7 +239,9 @@ export function createMeetingPrepService({ store, createLinkedTask }) {
       const record = {
         id: requestKey,
         accountId,
-        title: short(body.title, 200) || "KW期間比較",
+        title:
+          short(body.title, 200) ||
+          (r.placement ? "LINEバイト・配信面期間比較" : "KW期間比較"),
         report: r,
         hash,
         createdAt: now(),

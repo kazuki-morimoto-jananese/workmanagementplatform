@@ -4,6 +4,11 @@ import { DatabaseSync } from "node:sqlite";
 import { openStoreDatabase } from "../server/store.mjs";
 import { createMeetingPrepService } from "../server/meeting-prep.mjs";
 import { analyzeKw } from "../src/kw-analysis.ts";
+import {
+  analyzePlacement,
+  normalizePlacementRows,
+  suggestPlacementMapping,
+} from "../src/placement-analysis.ts";
 test("meeting preparation version conflicts, immutable snapshots, account isolation and duplicate task protection", async () => {
   const store = openStoreDatabase(new DatabaseSync(":memory:"));
   store.put("salesAccounts", { id: "a" });
@@ -89,4 +94,44 @@ test("meeting preparation version conflicts, immutable snapshots, account isolat
     { status: 400 },
   );
   assert.equal(store.get("kwAnalyses", saved.id).report.after.cost, 100);
+  const header = ["period_date", "publisher_category", "cost", "click", "cv"];
+  const mapping = suggestPlacementMapping(header);
+  const before = normalizePlacementRows(
+    [header, ["2026-07-01", "LINE", "100", "10", "1"]],
+    mapping,
+    0,
+    "daily",
+  );
+  const placement = analyzePlacement({
+    before,
+    after: before.map((r) => ({ ...r, date: "2026-08-01", cost: 200 })),
+    own: "自社",
+    periods: report.periods,
+    sources: report.sources,
+    granularity: "daily",
+  });
+  const placed = (
+    await call("/analyses", { requestId: "placement-test", report: placement })
+  ).value;
+  assert.equal(placed.title, "LINEバイト・配信面期間比較");
+  assert.equal(
+    (await call("/analyses/" + placed.id, {}, "GET")).value.report
+      .calculationVersion,
+    "placement-v1",
+  );
+  await call("/analyses/" + placed.id + "/task", { index: 0, projectId: "p" });
+  assert(store.get("tasks", "t2").description.includes("placement-v1"));
+  const invalid = structuredClone(placement);
+  invalid.placement.campaigns[0].after.cost = -1;
+  await assert.rejects(
+    call("/analyses", { requestId: "bad-placement", report: invalid }),
+    { status: 400 },
+  );
+  await assert.rejects(
+    call("/analyses", {
+      requestId: "bad-placement-2",
+      report: { ...placement, calculationVersion: "kw-v1" },
+    }),
+    { status: 400 },
+  );
 });

@@ -50,6 +50,20 @@ export type KwReport = {
   findings: { title: string; evidence: string; proposal: string }[];
   warnings: string[];
   entityCount: number;
+  placement?: {
+    granularity: "daily" | "monthly";
+    inputCounts: number[];
+    usedCounts: number[];
+    labels: { source: string; category: string }[];
+    campaignCount: number;
+    campaigns: {
+      campaignId: string;
+      campaignName: string;
+      category: string;
+      before: Totals;
+      after: Totals;
+    }[];
+  };
 };
 const divide = (a: number | null, b: number | null) =>
   a !== null && b !== null && b > 0 ? a / b : null;
