@@ -45,7 +45,7 @@
     "@vitejs/plugin-react": "^4.4.0",
     "fflate": "^0.8.3",
     "prettier": "^3.9.6",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "vite": "^6.1.0",
     "wrangler": "^4.129.0"
   }
