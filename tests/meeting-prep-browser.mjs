@@ -10,9 +10,23 @@ export async function runMeetingPrepBrowserChecks(page) {
   await page
     .getByRole("button", { name: "商談準備・分析", exact: true })
     .click();
-  await page
-    .getByLabel("商談準備の対象アカウント")
-    .selectOption("account-browser");
+  const accountSearch = page.getByRole("combobox", {
+    name: "商談準備の対象アカウント",
+  });
+  await accountSearch.fill("存在しないアカウント検索");
+  await expect(
+    page.getByText("一致するアカウントはありません", { exact: true }),
+  ).toBeVisible();
+  await accountSearch.fill("account-browser");
+  const candidates = page.getByRole("listbox", {name:"アカウント候補"}).getByRole("option");
+  await expect(candidates).toHaveCount(1);
+  await expect(candidates).toContainText("森本 一輝");
+  await accountSearch.press("Enter");
+  await expect(page.getByLabel("今回の議題")).toBeVisible();
+  await page.getByRole("button", { name: "選択を解除", exact: true }).click();
+  await expect(page.getByLabel("今回の議題")).toHaveCount(0);
+  await accountSearch.fill("テスト営業アカウント");
+  await page.getByRole("option").filter({ hasText: "account-browser" }).click();
   await page
     .getByLabel("今回の議題")
     .fill("KWの消化増とCVゼロについて確認する");
@@ -124,9 +138,8 @@ export async function runMeetingPrepBrowserChecks(page) {
   await page
     .getByRole("button", { name: "商談準備・分析", exact: true })
     .click();
-  await page
-    .getByLabel("商談準備の対象アカウント")
-    .selectOption("account-browser");
+  await page.getByLabel("商談準備の対象アカウント").fill("account-browser");
+  await page.getByRole("option").filter({ hasText: "account-browser" }).click();
   await expect(page.getByLabel("今回の議題")).toHaveValue(
     "KWの消化増とCVゼロについて確認する",
   );

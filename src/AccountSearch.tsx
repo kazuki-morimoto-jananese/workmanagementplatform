@@ -6,12 +6,14 @@ export function AccountSearch({
   onChange,
   disabled = false,
   label = "対象の営業アカウント",
+  clearLabel = "紐づけを解除",
 }: {
-  accounts: { id: string; name: string }[];
+  accounts: { id: string; name: string; ownerName?: string }[];
   value: string;
   onChange: (id: string) => void;
   disabled?: boolean;
   label?: string;
+  clearLabel?: string;
 }) {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -21,7 +23,9 @@ export function AccountSearch({
   const normalize = (s: string) =>
     s.normalize("NFKC").toLocaleLowerCase().replace(/\s/g, "");
   const matches = accounts
-    .filter((a) => normalize(a.name + a.id).includes(normalize(query)))
+    .filter((a) =>
+      normalize(a.name + a.id + (a.ownerName || "")).includes(normalize(query)),
+    )
     .slice(0, 50);
   const choose = (next: string) => {
     onChange(next);
@@ -52,7 +56,11 @@ export function AccountSearch({
         disabled={disabled}
         placeholder="アカウント名・IDを入力して検索"
         value={
-          open ? query : selected ? `${selected.name}（${selected.id}）` : ""
+          open
+            ? query
+            : selected
+              ? `${selected.name}（${selected.id}）${selected.ownerName ? ` · ${selected.ownerName}` : ""}`
+              : ""
         }
         onFocus={() => {
           setOpen(true);
@@ -87,7 +95,7 @@ export function AccountSearch({
           className="text-button"
           onClick={() => choose("")}
         >
-          紐づけを解除
+          {clearLabel}
         </button>
       )}
       {open && (
@@ -107,7 +115,10 @@ export function AccountSearch({
               onClick={() => choose(a.id)}
             >
               {a.name}
-              <small>{a.id}</small>
+              <small>
+                {a.id}
+                {a.ownerName ? ` · ${a.ownerName}` : ""}
+              </small>
             </div>
           ))}
           {!matches.length && <p>一致するアカウントはありません</p>}

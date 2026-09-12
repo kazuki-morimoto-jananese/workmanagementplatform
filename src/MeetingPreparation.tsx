@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AccountSearch } from "./AccountSearch";
 import "./meeting-preparation.css";
 import type { Data } from "./types";
 import type { SalesAccount, SalesData } from "./sales-types";
@@ -255,21 +256,13 @@ export function MeetingPreparation({
       <div className="panel">
         <h2>商談準備・KW分析</h2>
         <p>前回の商談と今回の数字をつなぎ、次に確認することを整理します。</p>
-        <label>
-          対象アカウント
-          <select
-            aria-label="商談準備の対象アカウント"
-            value={accountId}
-            onChange={(e) => setAccountId(e.target.value)}
-          >
-            <option value="">選択してください</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} · {a.ownerName}
-              </option>
-            ))}
-          </select>
-        </label>
+        <AccountSearch
+          label="商談準備の対象アカウント"
+          clearLabel="選択を解除"
+          accounts={accounts}
+          value={accountId}
+          onChange={setAccountId}
+        />
       </div>
       {account && (
         <PrepAccount
