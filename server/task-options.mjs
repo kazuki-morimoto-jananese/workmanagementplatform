@@ -22,7 +22,7 @@ export function redactTaskReferences(value, user, store) {
         ? v.filter((l) => canReadTask(store.get("tasks", l.taskId), user))
         : k === "dependencies" && Array.isArray(v)
           ? v.filter((id) => canReadTask(store.get("tasks", id), user))
-          : ["recurrenceNextId", "recurrenceParentId"].includes(k) &&
+          : ["recurrenceNextId", "recurrenceParentId", "taskId"].includes(k) &&
               typeof v === "string"
             ? canReadTask(store.get("tasks", v), user)
               ? v

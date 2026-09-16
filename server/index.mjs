@@ -1,4 +1,5 @@
 import http from "node:http";
+import { withReadCache } from "./store.mjs";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { resolve, extname, sep } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -1099,7 +1100,9 @@ export function createApp(options = {}) {
     }
   }
   const server = http.createServer((req, res) =>
-    auditContext.run({ actorId: "anonymous" }, () => handler(req, res)),
+    withReadCache(() =>
+      auditContext.run({ actorId: "anonymous" }, () => handler(req, res)),
+    ),
   );
   server.requestTimeout = 30000;
   server.on("listening", () => {
@@ -1123,10 +1126,11 @@ export function createApp(options = {}) {
     server,
     store,
     close,
-    tick: async () => {
-      await sales.tick();
-      await workspaceService.tick();
-    },
+    tick: () =>
+      withReadCache(async () => {
+        await sales.tick();
+        await workspaceService.tick();
+      }),
   };
 }
 if (

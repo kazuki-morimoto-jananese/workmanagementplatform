@@ -4,6 +4,13 @@ import { createMinuteService } from "./minutes.mjs";
 import { createDashboardService } from "./sales-dashboard.mjs";
 import { createDirectoryService } from "./account-directory.mjs";
 import { createMeetingPrepService } from "./meeting-prep.mjs";
+import {
+  importQuality,
+  ownerMatches,
+  mappingId,
+  saveMapping,
+} from "./import-quality.mjs";
+import { createSalesImprovements } from "./sales-improvements.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
 import { syncTime, scheduledSyncDue } from "./sales-schedule.mjs";
 import { withImportedForecast, savePersonalTargets } from "./sales-targets.mjs";
@@ -94,6 +101,7 @@ export function createSalesService({
     store,
     createLinkedTask,
   });
+  const improvements = createSalesImprovements({ store, createLinkedTask });
   const account = (aid) => {
     const a = store.get("salesAccounts", aid);
     check(a, "アカウントが見つかりません。", 404);
@@ -213,19 +221,20 @@ export function createSalesService({
       preview = buildPreview(input);
     check(!preview.errors.length, preview.errors.join("\n"));
     check(preview.rows.length, "取込対象がありません。");
+    if (input.qualityToken)
+      check(
+        input.qualityToken === importQuality(store, preview, month).token,
+        "確認後に元データまたは担当者が更新されました。取込内容をもう一度確認してください。",
+        409,
+      );
     let created = 0,
       updated = 0;
     const sourceName = text(input.sourceName, 150) || "CSV/TSV";
+    const users = store.users();
     store.transaction(() => {
       for (const row of preview.rows) {
         const old = store.get("salesAccounts", row.accountId);
-        const matches = store
-          .users()
-          .filter(
-            (u) =>
-              u.active &&
-              (u.name === row.ownerName || u.email === row.ownerName),
-          );
+        const matches = ownerMatches(users, row.ownerName);
         const base = old || {
           id: row.accountId,
           name: row.name,
@@ -243,7 +252,9 @@ export function createSalesService({
         };
         if (
           row.ownerName !== undefined &&
-          (!old || row.ownerName !== old.ownerName)
+          (!old ||
+            row.ownerName !== old.ownerName ||
+            !users.some((u) => u.id === old.ownerId && u.active))
         )
           base.ownerId = matches.length === 1 ? matches[0].id : "";
         const importedContact = row.lastContactAt;
@@ -528,6 +539,7 @@ export function createSalesService({
     };
     const admin = () =>
       check(user.role === "admin", "管理者のみ操作できます。", 403);
+    if (await improvements({ p, method, body, user, reply, url })) return true;
     if (await meetingPrepService({ p, method, body, user, reply, url }))
       return true;
     if (await directoryService.handle({ p, method, body, user, reply, url }))
@@ -968,7 +980,27 @@ export function createSalesService({
     }
     if (p === "/sales/imports/preview" && method === "POST") {
       monthValue(body.month);
-      return reply(200, buildPreview(body));
+      let preview = buildPreview(body),
+        mappingApplied = false;
+      if (!Object.keys(body.mapping || {}).length) {
+        const saved = store.get(
+          "salesImportMappings",
+          mappingId(preview.headers),
+        );
+        if (saved) {
+          preview = buildPreview({ ...body, mapping: saved.mapping });
+          mappingApplied = true;
+        }
+      }
+      return reply(200, {
+        ...preview,
+        mappingApplied,
+        quality: importQuality(store, preview, body.month),
+      });
+    }
+    if (p === "/sales/imports/mapping" && method === "POST") {
+      admin();
+      return reply(200, saveMapping(store, body, user));
     }
     if (p === "/sales/imports/commit" && method === "POST") {
       admin();

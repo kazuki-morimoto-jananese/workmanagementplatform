@@ -11,6 +11,9 @@ import {
 import { promisify } from "node:util";
 import { AsyncLocalStorage } from "node:async_hooks";
 export const auditContext = new AsyncLocalStorage();
+// Cache only within a request/job; never share a user's response across requests.
+export const readContext = new AsyncLocalStorage();
+export const withReadCache = (fn) => readContext.run(new Map(), fn);
 const scrypt = promisify(scryptCb);
 export const id = () => randomUUID();
 export const now = () => new Date().toISOString();
@@ -35,6 +38,30 @@ export function openStore(directory) {
   return openStoreDatabase(db);
 }
 export function openStoreDatabase(db) {
+  const startedAt = now();
+  let reads = 0,
+    returnedRows = 0,
+    cacheHits = 0;
+  const revisions = new Map();
+  const invalidate = (kind) =>
+    revisions.set(kind, (revisions.get(kind) || 0) + 1);
+  const read = (kind, key, query) => {
+    const context = readContext.getStore();
+    let cache = context?.get(db);
+    if (context && !cache) context.set(db, (cache = new Map()));
+    const cacheKey = JSON.stringify([kind, key]);
+    const revision = revisions.get(kind) || 0;
+    const previous = cache?.get(cacheKey);
+    if (previous?.revision === revision) {
+      cacheHits++;
+      return structuredClone(previous.value);
+    }
+    const value = query();
+    reads++;
+    returnedRows += Array.isArray(value) ? value.length : value == null ? 0 : 1;
+    cache?.set(cacheKey, { revision, value: structuredClone(value) });
+    return value;
+  };
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires INTEGER NOT NULL);
@@ -64,6 +91,9 @@ export function openStoreDatabase(db) {
     "meetingPrepDrafts",
     "kwAnalyses",
     "kwTaskLinks",
+    "salesActionStates",
+    "salesInitiatives",
+    "salesImportMappings",
     "orgUnits",
     "settings",
   ]);
@@ -114,21 +144,35 @@ export function openStoreDatabase(db) {
   });
   return {
     db,
+    usage: () => ({
+      startedAt,
+      reads,
+      returnedRows,
+      cacheHits,
+      database: db.usage?.() || null,
+    }),
     users: () =>
-      db
-        .prepare("SELECT data FROM users")
-        .all()
-        .map((r) => JSON.parse(r.data)),
-    user: (uid) => {
-      const row = db.prepare("SELECT data FROM users WHERE id=?").get(uid);
-      return row ? JSON.parse(row.data) : null;
-    },
-    userByEmail: (email) => {
-      const row = db.prepare("SELECT data FROM users WHERE email=?").get(email);
-      return row ? JSON.parse(row.data) : null;
-    },
+      read("users", "all", () =>
+        db
+          .prepare("SELECT data FROM users")
+          .all()
+          .map((r) => JSON.parse(r.data)),
+      ),
+    user: (uid) =>
+      read("users", ["id", uid], () => {
+        const row = db.prepare("SELECT data FROM users WHERE id=?").get(uid);
+        return row ? JSON.parse(row.data) : null;
+      }),
+    userByEmail: (email) =>
+      read("users", ["email", email], () => {
+        const row = db
+          .prepare("SELECT data FROM users WHERE email=?")
+          .get(email);
+        return row ? JSON.parse(row.data) : null;
+      }),
     saveUser: (user) =>
       atomic(() => {
+        invalidate("users");
         const old = db
           .prepare("SELECT data FROM users WHERE id=?")
           .get(user.id);
@@ -145,18 +189,22 @@ export function openStoreDatabase(db) {
         return result;
       }),
     all: (kind) =>
-      db
-        .prepare("SELECT data FROM records WHERE kind=? ORDER BY rowid")
-        .all(kind)
-        .map((r) => JSON.parse(r.data)),
-    get: (kind, rid) => {
-      const row = db
-        .prepare("SELECT data FROM records WHERE kind=? AND id=?")
-        .get(kind, rid);
-      return row ? JSON.parse(row.data) : null;
-    },
+      read(kind, "all", () =>
+        db
+          .prepare("SELECT data FROM records WHERE kind=? ORDER BY rowid")
+          .all(kind)
+          .map((r) => JSON.parse(r.data)),
+      ),
+    get: (kind, rid) =>
+      read(kind, ["id", rid], () => {
+        const row = db
+          .prepare("SELECT data FROM records WHERE kind=? AND id=?")
+          .get(kind, rid);
+        return row ? JSON.parse(row.data) : null;
+      }),
     put: (kind, record) =>
       atomic(() => {
+        invalidate(kind);
         const before =
           db
             .prepare("SELECT data FROM records WHERE kind=? AND id=?")
@@ -173,6 +221,7 @@ export function openStoreDatabase(db) {
       }),
     remove: (kind, rid) =>
       atomic(() => {
+        invalidate(kind);
         const before = db
           .prepare("SELECT data FROM records WHERE kind=? AND id=?")
           .get(kind, rid)?.data;
@@ -185,7 +234,11 @@ export function openStoreDatabase(db) {
     audit: (kind, rid, after) =>
       audit(kind, rid, null, JSON.stringify(after), "event"),
     transaction(fn) {
-      return atomic(fn);
+      try {
+        return atomic(fn);
+      } finally {
+        for (const kind of revisions.keys()) invalidate(kind);
+      }
     },
   };
 }

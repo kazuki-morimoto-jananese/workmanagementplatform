@@ -206,6 +206,32 @@ export type SalesData = {
   }[];
 };
 export type ImportPreview = {
+  fieldOptions: { key: string; label: string }[];
+  mappingApplied?: boolean;
+  quality?: {
+    month: string;
+    token: string;
+    created: number;
+    changed: number;
+    unchanged: number;
+    stopped: number;
+    unlinked: number;
+    duplicateNames: number;
+    issues: string[];
+    changes: {
+      accountId: string;
+      name: string;
+      created: boolean;
+      fields: string[];
+    }[];
+    totals: {
+      field: string;
+      mapped: boolean;
+      before: { total: number | null; missing: number; zero: number };
+      incoming: { total: number | null; missing: number; zero: number };
+      after: { total: number | null; missing: number; zero: number };
+    }[];
+  };
   headers: string[];
   mapping: Record<string, string | number>;
   rows: { accountId: string; name: string; [key: string]: unknown }[];

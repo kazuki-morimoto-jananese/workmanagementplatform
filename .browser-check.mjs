@@ -14,6 +14,7 @@ import { runGoogleWorkflowBrowserChecks } from "./tests/google-workflows-browser
 import { runMeetingPrepBrowserChecks } from "./tests/meeting-prep-browser.mjs";
 import { runMinuteUxBrowserChecks } from "./tests/minute-ux-browser.mjs";
 import { runPlacementBrowserChecks } from "./tests/placement-browser.mjs";
+import { runSalesImprovementChecks } from "./tests/sales-improvements-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
 const cloud = process.argv.includes("--cloud");
@@ -254,6 +255,7 @@ try {
     await runMinuteUxBrowserChecks(page);
     await runMeetingPrepBrowserChecks(page);
     await runPlacementBrowserChecks(page);
+    await runSalesImprovementChecks(page, cloud);
   }
   await page.getByRole("button", { name: "ホーム", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });

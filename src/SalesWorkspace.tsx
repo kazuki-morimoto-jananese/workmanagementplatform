@@ -1,7 +1,10 @@
 import { DriveCollection } from "./DriveCollection";
 import { accountInOwnerFilter } from "./account-ownership";
 import { MeetingPreparation } from "./MeetingPreparation";
+import { ImportQuality, StorageUsage } from "./ImportQuality";
 import {
+  lazy,
+  Suspense,
   createContext,
   useContext,
   useEffect,
@@ -12,6 +15,9 @@ import {
   type FormEvent,
   type ButtonHTMLAttributes,
 } from "react";
+const SalesImprovements = lazy(() =>
+  import("./SalesImprovements").then((m) => ({ default: m.SalesImprovements })),
+);
 import {
   ArrowRight,
   BarChart3,
@@ -543,7 +549,7 @@ export default function SalesWorkspace({
       });
     const timer = setInterval(() => {
       if (!document.hidden) load().catch(() => {});
-    }, 5000);
+    }, 60000);
     return () => {
       alive = false;
       clearInterval(timer);
@@ -909,6 +915,8 @@ export default function SalesWorkspace({
       <nav className="sales-tabs" aria-label="営業管理ビュー">
         {[
           { id: "summary", label: "営業サマリー", icon: BarChart3 },
+          { id: "actions", label: "優先アクション", icon: CheckCircle2 },
+          { id: "initiatives", label: "施策・成果", icon: Target },
           { id: "directory", label: "アカウントマスタ", icon: Users },
           { id: "reviews", label: "週次ヨミ", icon: TrendingUp },
           { id: "opportunities", label: "商談", icon: BriefcaseBusiness },
@@ -935,6 +943,22 @@ export default function SalesWorkspace({
         ))}
       </nav>
       {tab === "crm" && <CrmWorkspace api={api} data={data} />}
+      {(tab === "actions" || tab === "initiatives") && (
+        <Suspense fallback={<p role="status">画面を読み込み中…</p>}>
+          <SalesImprovements
+            key={month + effectiveScope + tab}
+            api={api}
+            data={data}
+            sales={sales}
+            accounts={scopedAccounts}
+            month={month}
+            week={week}
+            mode={tab}
+            onOpenTask={onOpenTask}
+            onTasksChanged={onTasksChanged}
+          />
+        </Suspense>
+      )}
       {tab === "preparation" && (
         <MeetingPreparation
           api={api}
@@ -1712,6 +1736,7 @@ export default function SalesWorkspace({
           )}
           {tab === "connections" && (
             <>
+              {admin && <StorageUsage api={api} />}
               <section className="sales-connection-top">
                 <div>
                   <span className="eyebrow">A RELIABLE SOURCE OF TRUTH</span>
@@ -1775,7 +1800,14 @@ export default function SalesWorkspace({
                             { text: importText, month, mapping },
                           );
                           setPreview(p);
-                          setMapping(p.mapping);
+                          setMapping(
+                            Object.fromEntries(
+                              p.fieldOptions.map((f) => [
+                                f.key,
+                                p.mapping[f.key] ?? "",
+                              ]),
+                            ),
+                          );
                           setMappingDirty(false);
                         })
                       }
@@ -1788,6 +1820,14 @@ export default function SalesWorkspace({
                   {preview && (
                     <div className="sales-preview">
                       <h3>{preview.count} 件のプレビュー</h3>
+                      <ImportQuality
+                        key={preview.quality?.token}
+                        preview={preview}
+                        api={api}
+                        admin={admin}
+                        mapping={mapping}
+                        disabled={mappingDirty || busy}
+                      />
                       <section aria-label="ヨミの列対応">
                         <h4>ヨミの対応を確認</h4>
                         <div className="sales-mapping-grid sales-forecast-mapping">
@@ -1939,6 +1979,7 @@ export default function SalesWorkspace({
                                 mapping,
                                 sourceName: importSource,
                                 seedReviews,
+                                qualityToken: preview.quality?.token,
                               },
                               "マスタを取り込みました。入力済みのヨミは保持しています。",
                             );

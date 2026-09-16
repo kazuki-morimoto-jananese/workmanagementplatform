@@ -2,29 +2,66 @@ import { DurableObject } from "cloudflare:workers";
 import { httpServerHandler } from "cloudflare:node";
 import { createApp } from "./index.mjs";
 import { openStoreDatabase } from "./store.mjs";
-import { isDailyStorageQuota, nextDailyReset, storageQuotaResponse } from "./cloud-quota.mjs";
+import {
+  isDailyStorageQuota,
+  nextDailyReset,
+  storageQuotaResponse,
+} from "./cloud-quota.mjs";
 
 // The existing domain model uses synchronous SQLite transactions. Durable Objects
 // supplies the same isolation without relying on a temporary Worker filesystem.
 export function durableDatabase(storage) {
   let depth = 0;
+  const startedAt = new Date().toISOString();
+  let day = startedAt.slice(0, 10),
+    rowsRead = 0,
+    rowsWritten = 0,
+    queries = 0;
+  const measure = (cursor) => {
+    const current = new Date().toISOString().slice(0, 10);
+    if (current !== day) {
+      day = current;
+      rowsRead = rowsWritten = queries = 0;
+    }
+    rowsRead += cursor.rowsRead || 0;
+    rowsWritten += cursor.rowsWritten || 0;
+    queries++;
+  };
   return {
+    usage: () => ({
+      startedAt,
+      day,
+      rowsRead,
+      rowsWritten,
+      queries,
+      bytes: storage.sql.databaseSize,
+    }),
     get isTransaction() {
       return depth > 0;
     },
     exec(sql) {
-      storage.sql.exec(sql);
+      const cursor = storage.sql.exec(sql);
+      cursor.toArray();
+      measure(cursor);
     },
     prepare(sql) {
       return {
         all(...args) {
-          return storage.sql.exec(sql, ...args).toArray();
+          const cursor = storage.sql.exec(sql, ...args);
+          const rows = cursor.toArray();
+          measure(cursor);
+          return rows;
         },
         get(...args) {
-          return storage.sql.exec(sql, ...args).toArray()[0];
+          const cursor = storage.sql.exec(sql, ...args);
+          const rows = cursor.toArray();
+          measure(cursor);
+          return rows[0];
         },
         run(...args) {
           const cursor = storage.sql.exec(sql, ...args);
+          cursor.toArray();
+          measure(cursor);
           return { changes: cursor.rowsWritten };
         },
       };

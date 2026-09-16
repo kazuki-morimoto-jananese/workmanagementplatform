@@ -14,6 +14,11 @@ export async function runSalesBrowserChecks(page) {
   await page
     .getByRole("heading", { name: "1 件のプレビュー", exact: true })
     .waitFor();
+  await page.getByRole("region", { name: "取り込み品質チェック" }).waitFor();
+  await page
+    .getByRole("button", { name: "この列対応を保存", exact: true })
+    .click();
+  await page.getByText("列対応を保存しました。", { exact: true }).waitFor();
   await page
     .getByRole("button", { name: "この内容で取り込む", exact: true })
     .click();

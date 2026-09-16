@@ -213,6 +213,16 @@ export function createWorkspaceService({
         send(200, {
           entries: rows
             .filter((r) => {
+              if (r.kind === "salesActionStates")
+                return [r.before_data, r.after_data]
+                  .filter(Boolean)
+                  .every((raw) => {
+                    const state = JSON.parse(raw);
+                    return (
+                      state.kind !== "task" ||
+                      canReadTask(store.get("tasks", state.referenceId), user)
+                    );
+                  });
               if (r.kind !== "tasks")
                 return !["googleConnections", "googleOAuthStates"].includes(
                   r.kind,
@@ -246,6 +256,11 @@ export function createWorkspaceService({
             })),
           next: rows.length === 100 ? rows.at(-1).seq : null,
         });
+        return true;
+      }
+      if (path === "/api/operations/usage" && method === "GET") {
+        admin();
+        send(200, store.usage());
         return true;
       }
       if (path === "/api/operations" && method === "GET") {
