@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Data } from "./types";
 import { AuditHistory } from "./WorkspaceAdmin";
+import { AccountSearch } from "./AccountSearch";
+import { relationshipRoles } from "./customer-hub-types";
 type Contact = {
   id?: string;
   version?: number;
@@ -15,6 +17,9 @@ type Contact = {
   consent: string;
   nextContact: string;
   notes: string;
+  department?: string;
+  jobTitle?: string;
+  relationshipRole?: string;
 };
 const stages: Record<string, string> = {
   new: "新規",
@@ -45,10 +50,14 @@ export function CrmWorkspace({
   api,
   data,
   integrations = false,
+  initialAccountId = "",
+  initialContactId = "",
 }: {
   api: <T = any>(path: string, method?: string, body?: unknown) => Promise<T>;
   data: Data;
   integrations?: boolean;
+  initialAccountId?: string;
+  initialContactId?: string;
 }) {
   const [state, setState] = useState<any>(null),
     [draft, setDraft] = useState<Contact | null>(null),
@@ -58,11 +67,35 @@ export function CrmWorkspace({
     [source, setSource] = useState(""),
     [secret, setSecret] = useState(""),
     [notice, setNotice] = useState("");
-  const load = () => api("/crm/bootstrap").then(setState);
+  const load = () =>
+    api("/crm/bootstrap").then((value) => {
+      setState(value);
+      return value;
+    });
   const [projectId, setProjectId] = useState(data.projects[0]?.id || "");
   useEffect(() => {
-    load().catch((e) => setError(e.message));
+    load()
+      .then((value) => {
+        if (initialContactId === "new")
+          setDraft({
+            ...empty,
+            accountId: initialAccountId,
+            ownerId: data.user.id,
+          });
+        else if (initialContactId)
+          setDraft(
+            value.contacts.find((c: Contact) => c.id === initialContactId) ||
+              null,
+          );
+      })
+      .catch((e) => setError(e.message));
   }, []);
+  useEffect(() => {
+    if (draft)
+      document
+        .getElementById("crm-contact-editor")
+        ?.scrollIntoView({ block: "start" });
+  }, [!!draft]);
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
@@ -299,7 +332,7 @@ export function CrmWorkspace({
           </p>
           <button
             className="button primary"
-            onClick={() => setDraft({ ...empty })}
+            onClick={() => setDraft({ ...empty, accountId: initialAccountId })}
           >
             顧客担当者を追加
           </button>
@@ -395,6 +428,7 @@ export function CrmWorkspace({
           </p>
           {draft && (
             <form
+              id="crm-contact-editor"
               className="standard-form"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -410,6 +444,8 @@ export function CrmWorkspace({
                 {Object.entries({
                   name: "氏名",
                   company: "会社名",
+                  department: "部署",
+                  jobTitle: "役職",
                   email: "メール",
                   source: "流入元",
                   campaign: "施策名",
@@ -434,18 +470,24 @@ export function CrmWorkspace({
                     />
                   </label>
                 ))}
+                <AccountSearch
+                  label="顧客担当者のアカウント"
+                  value={draft.accountId}
+                  accounts={data.salesAccounts || []}
+                  onChange={(id) => setDraft({ ...draft, accountId: id })}
+                />
                 <label>
-                  アカウント
+                  顧客内の役割
                   <select
-                    value={draft.accountId}
+                    aria-label="顧客内の役割"
+                    value={draft.relationshipRole || "unknown"}
                     onChange={(e) =>
-                      setDraft({ ...draft, accountId: e.target.value })
+                      setDraft({ ...draft, relationshipRole: e.target.value })
                     }
                   >
-                    <option value="">未設定</option>
-                    {data.salesAccounts?.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
+                    {Object.entries(relationshipRoles).map(([k, label]) => (
+                      <option value={k} key={k}>
+                        {label}
                       </option>
                     ))}
                   </select>

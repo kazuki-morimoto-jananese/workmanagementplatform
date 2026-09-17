@@ -18,6 +18,9 @@ import {
 const SalesImprovements = lazy(() =>
   import("./SalesImprovements").then((m) => ({ default: m.SalesImprovements })),
 );
+const CustomerHub = lazy(() =>
+  import("./CustomerHub").then((m) => ({ default: m.CustomerHub })),
+);
 import {
   ArrowRight,
   BarChart3,
@@ -463,6 +466,10 @@ export default function SalesWorkspace({
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [tab, setTab] = useState("summary");
+  const [crmContext, setCrmContext] = useState<{
+    accountId: string;
+    contactId: string;
+  } | null>(null);
   const [month, setMonth] = useState(today().slice(0, 7)),
     [week, setWeek] = useState(weekMonday()),
     [search, setSearch] = useState(""),
@@ -917,6 +924,7 @@ export default function SalesWorkspace({
           { id: "summary", label: "営業サマリー", icon: BarChart3 },
           { id: "actions", label: "優先アクション", icon: CheckCircle2 },
           { id: "initiatives", label: "施策・成果", icon: Target },
+          { id: "customers", label: "顧客カルテ", icon: Users },
           { id: "directory", label: "アカウントマスタ", icon: Users },
           { id: "reviews", label: "週次ヨミ", icon: TrendingUp },
           { id: "opportunities", label: "商談", icon: BriefcaseBusiness },
@@ -933,6 +941,7 @@ export default function SalesWorkspace({
             key={t.id}
             className={tab === t.id ? "active" : ""}
             onClick={() => {
+              if (t.id === "crm") setCrmContext(null);
               setTab(t.id);
               setError("");
             }}
@@ -942,7 +951,32 @@ export default function SalesWorkspace({
           </button>
         ))}
       </nav>
-      {tab === "crm" && <CrmWorkspace api={api} data={data} />}
+      {tab === "crm" && (
+        <CrmWorkspace
+          key={(crmContext?.accountId || "") + (crmContext?.contactId || "")}
+          api={api}
+          data={data}
+          initialAccountId={crmContext?.accountId}
+          initialContactId={crmContext?.contactId}
+        />
+      )}
+      {tab === "customers" && (
+        <Suspense fallback={<p role="status">画面を読み込み中…</p>}>
+          <CustomerHub
+            key={effectiveScope}
+            api={api}
+            data={data}
+            sales={sales}
+            accounts={scopedAccounts}
+            month={month}
+            onOpenTask={onOpenTask}
+            onContact={(accountId, contactId) => {
+              setCrmContext({ accountId, contactId });
+              setTab("crm");
+            }}
+          />
+        </Suspense>
+      )}
       {(tab === "actions" || tab === "initiatives") && (
         <Suspense fallback={<p role="status">画面を読み込み中…</p>}>
           <SalesImprovements

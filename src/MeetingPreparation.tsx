@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { AccountSearch } from "./AccountSearch";
+import { PreparationTemplates } from "./PreparationTemplates";
+import type {
+  PrepCheck,
+  PrepTemplate,
+  PrepTemplateSource,
+} from "./customer-hub-types";
 import {
   suggestPlacementMapping,
   normalizePlacementRows,
@@ -320,6 +326,8 @@ function PrepAccount({
       title: string;
       report: KwReport;
     } | null>(null);
+  const [checklist, setChecklist] = useState<PrepCheck[]>([]),
+    [templateSources, setTemplateSources] = useState<PrepTemplateSource[]>([]);
   const query = "?accountId=" + encodeURIComponent(account.id);
   useEffect(() => {
     let active = true;
@@ -328,6 +336,8 @@ function PrepAccount({
         if (active) {
           setAgenda(r.draft.agenda);
           setVersion(r.draft.version);
+          setChecklist(r.draft.checklist || []);
+          setTemplateSources(r.draft.templateSources || []);
           setHistory(r.analyses);
           setLoaded(true);
         }
@@ -352,6 +362,33 @@ function PrepAccount({
   const tasks = data.tasks.filter(
     (t) => t.accountId === account.id && t.status !== "done",
   );
+  async function saveAgenda(template?: PrepTemplate) {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await api("/sales/preparation/draft", "POST", {
+        accountId: account.id,
+        version,
+        agenda,
+        checklist,
+        ...(template
+          ? { applyTemplate: { id: template.id, version: template.version } }
+          : {}),
+      });
+      setVersion(r.version);
+      setAgenda(r.agenda);
+      setChecklist(r.checklist || []);
+      setTemplateSources(r.templateSources || []);
+      setMessage(
+        template ? "テンプレートを追加して保存しました" : "議題を保存しました",
+      );
+    } catch (e) {
+      setError((e as Error).message);
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <div className="prep-grid">
@@ -395,25 +432,11 @@ function PrepAccount({
           <button
             className="button primary"
             disabled={!loaded || busy}
-            onClick={async () => {
-              setBusy(true);
-              setError("");
-              try {
-                const r = await api("/sales/preparation/draft", "POST", {
-                  accountId: account.id,
-                  version,
-                  agenda,
-                });
-                setVersion(r.version);
-                setMessage("議題を保存しました");
-              } catch (e) {
-                setError((e as Error).message);
-              } finally {
-                setBusy(false);
-              }
+            onClick={() => {
+              void saveAgenda().catch(() => {});
             }}
           >
-            議題を保存
+            議題・チェックリストを保存
           </button>
           <p role="status">{message}</p>
           {error && (
@@ -423,6 +446,29 @@ function PrepAccount({
           )}
         </section>
       </div>
+      <section className="panel prep-playbook">
+        <PreparationTemplates
+          api={api}
+          data={data}
+          disabled={!loaded || busy}
+          checklist={checklist}
+          sources={templateSources}
+          onChange={(items) => {
+            setChecklist(items);
+            setMessage("未保存の変更があります");
+          }}
+          onApply={saveAgenda}
+        />
+        <button
+          className="button primary"
+          disabled={!loaded || busy}
+          onClick={() => {
+            void saveAgenda().catch(() => {});
+          }}
+        >
+          確認内容を保存
+        </button>
+      </section>
       <div className="prep-grid">
         <section className="panel">
           <h3>前回までの議事録</h3>

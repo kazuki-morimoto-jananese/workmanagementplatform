@@ -28,12 +28,27 @@ export function contactInput(store, body, previous = {}) {
     "nextContact",
     "stage",
     "consent",
+    "department",
+    "jobTitle",
+    "relationshipRole",
   ])
     value[key] = Object.hasOwn(body, key)
       ? text(body[key], key === "notes" ? 3000 : 200)
       : previous[key] || "";
   value.stage ||= "new";
   value.consent ||= "unknown";
+  value.relationshipRole ||= "unknown";
+  fail(
+    [
+      "unknown",
+      "decision",
+      "champion",
+      "operator",
+      "procurement",
+      "other",
+    ].includes(value.relationshipRole),
+    "顧客内の役割を確認してください。",
+  );
   fail(value.name, "顧客担当者名が必要です。");
   fail(
     !value.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email),

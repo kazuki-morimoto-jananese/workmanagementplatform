@@ -1,0 +1,165 @@
+.customer-hub {
+  display: grid;
+  gap: 20px;
+}
+.customer-hub .panel {
+  padding: 24px;
+  min-width: 0;
+}
+.customer-hub h2 {
+  font-size: 21px;
+  margin-bottom: 10px;
+}
+.customer-hub h3 {
+  font-size: 18px;
+  margin: 10px 0;
+}
+.customer-hub h4 {
+  margin: 14px 0 8px;
+}
+.customer-hub p {
+  margin: 8px 0 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.customer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.customer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.customer-hub label {
+  display: grid;
+  gap: 8px;
+}
+.customer-hub select,
+.customer-hub input,
+.customer-hub textarea {
+  max-width: 100%;
+  min-width: 0;
+}
+.customer-overview {
+  border-top: 4px solid #315746;
+}
+.customer-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.customer-metrics > div {
+  background: #f0f5f3;
+  border: 1px solid #d3e0dc;
+  border-radius: 12px;
+  padding: 16px;
+}
+.customer-metrics dd {
+  margin: 8px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.customer-copy {
+  white-space: pre-wrap;
+}
+.customer-editor,
+.customer-record-detail {
+  padding: 20px;
+  margin-top: 20px;
+  display: grid;
+  gap: 14px;
+  border: 2px solid #a9bdb4;
+  border-radius: 12px;
+  min-width: 0;
+}
+.customer-contact {
+  background: #f7f9fa;
+  border: 1px solid #d5e0e7;
+  border-radius: 12px;
+  padding: 18px;
+  min-width: 0;
+}
+.customer-events {
+  list-style: none;
+  padding: 0;
+}
+.customer-events > li {
+  border-left: 3px solid #a5bcb0;
+  padding: 8px 0 20px 20px;
+  margin: 20px 0;
+  border-bottom: 1px solid #dae3e9;
+}
+.customer-record-detail pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 450px;
+  overflow: auto;
+}
+.customer-record-detail .prep-table {
+  min-width: 0;
+  overflow-x: auto;
+}
+.prep-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.prep-check-row {
+  padding: 14px;
+  border: 1px solid #d3e0dc;
+  border-radius: 10px;
+  background: #f5f8f7;
+}
+.prep-check-row label:first-child {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  align-items: start;
+}
+.prep-check-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  margin-top: 4px;
+}
+.prep-check-row input:not([type="checkbox"]) {
+  margin-top: 10px;
+  width: 100%;
+}
+.prep-template-preview {
+  background: #f0f5f9;
+  border: 1px solid #c8d8e2;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 12px 0;
+}
+.prep-template-preview pre {
+  white-space: pre-wrap;
+  font: inherit;
+}
+.prep-template-editor {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 2px solid #acc4b8;
+  border-radius: 12px;
+  margin: 16px 0;
+}
+@media (max-width: 700px) {
+  .customer-grid,
+  .prep-checklist,
+  .customer-metrics {
+    grid-template-columns: 1fr;
+  }
+  .customer-hub .panel {
+    padding: 18px;
+  }
+  .customer-toolbar > * {
+    max-width: 100%;
+  }
+}

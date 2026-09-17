@@ -18,7 +18,9 @@ export async function runMeetingPrepBrowserChecks(page) {
     page.getByText("一致するアカウントはありません", { exact: true }),
   ).toBeVisible();
   await accountSearch.fill("account-browser");
-  const candidates = page.getByRole("listbox", {name:"アカウント候補"}).getByRole("option");
+  const candidates = page
+    .getByRole("listbox", { name: "アカウント候補" })
+    .getByRole("option");
   await expect(candidates).toHaveCount(1);
   await expect(candidates).toContainText("森本 一輝");
   await accountSearch.press("Enter");
@@ -30,7 +32,9 @@ export async function runMeetingPrepBrowserChecks(page) {
   await page
     .getByLabel("今回の議題")
     .fill("KWの消化増とCVゼロについて確認する");
-  await page.getByRole("button", { name: "議題を保存", exact: true }).click();
+  await page
+    .getByRole("button", { name: "議題・チェックリストを保存", exact: true })
+    .click();
   await expect(
     page.getByText("議題を保存しました", { exact: true }),
   ).toBeVisible();

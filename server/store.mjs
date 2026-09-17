@@ -10,6 +10,7 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { customerIndexSql } from "./customer-records.mjs";
 export const auditContext = new AsyncLocalStorage();
 // Cache only within a request/job; never share a user's response across requests.
 export const readContext = new AsyncLocalStorage();
@@ -69,6 +70,7 @@ export function openStoreDatabase(db) {
     CREATE TABLE IF NOT EXISTS audit_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, record_id TEXT NOT NULL, action TEXT NOT NULL, actor_id TEXT NOT NULL, created_at TEXT NOT NULL, before_data TEXT, after_data TEXT);
     CREATE INDEX IF NOT EXISTS audit_record ON audit_log(kind,record_id,seq);
     CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY);`);
+  db.exec(customerIndexSql);
   const tracked = new Set([
     "crmContacts",
     "integrationBatches",
@@ -89,6 +91,8 @@ export function openStoreDatabase(db) {
     "salesDirectoryAccounts",
     "googleArtifacts",
     "meetingPrepDrafts",
+    "meetingPrepTemplates",
+    "customerProfiles",
     "kwAnalyses",
     "kwTaskLinks",
     "salesActionStates",

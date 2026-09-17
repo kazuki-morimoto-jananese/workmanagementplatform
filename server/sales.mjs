@@ -11,6 +11,8 @@ import {
   saveMapping,
 } from "./import-quality.mjs";
 import { createSalesImprovements } from "./sales-improvements.mjs";
+import { createCustomerHub } from "./customer-hub.mjs";
+import { createPreparationTemplates } from "./preparation-templates.mjs";
 import { orgReference, orgPath } from "./workspace.mjs";
 import { syncTime, scheduledSyncDue } from "./sales-schedule.mjs";
 import { withImportedForecast, savePersonalTargets } from "./sales-targets.mjs";
@@ -102,6 +104,8 @@ export function createSalesService({
     createLinkedTask,
   });
   const improvements = createSalesImprovements({ store, createLinkedTask });
+  const customerHub = createCustomerHub({ store });
+  const preparationTemplates = createPreparationTemplates({ store });
   const account = (aid) => {
     const a = store.get("salesAccounts", aid);
     check(a, "アカウントが見つかりません。", 404);
@@ -540,6 +544,9 @@ export function createSalesService({
     const admin = () =>
       check(user.role === "admin", "管理者のみ操作できます。", 403);
     if (await improvements({ p, method, body, user, reply, url })) return true;
+    if (await customerHub({ p, method, body, user, reply, url })) return true;
+    if (await preparationTemplates({ p, method, body, user, reply, url }))
+      return true;
     if (await meetingPrepService({ p, method, body, user, reply, url }))
       return true;
     if (await directoryService.handle({ p, method, body, user, reply, url }))

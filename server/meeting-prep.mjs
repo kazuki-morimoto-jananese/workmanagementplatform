@@ -1,5 +1,7 @@
 import { now, digest } from "./store.mjs";
 import { canReadTask } from "./task-options.mjs";
+import { prepareDraft } from "./preparation-templates.mjs";
+import { accountRecords } from "./customer-records.mjs";
 const check = (v, m, status = 400) => {
   if (!v) throw Object.assign(new Error(m), { status });
 };
@@ -21,11 +23,12 @@ export function createMeetingPrepService({ store, createLinkedTask }) {
           agenda: "",
           version: 0,
         },
-        analyses: store.db
-          .prepare(
-            "SELECT id, json_extract(data, '$.title') AS title, json_extract(data, '$.createdAt') AS createdAt FROM records WHERE kind='kwAnalyses' AND json_extract(data, '$.accountId')=? ORDER BY createdAt DESC",
-          )
-          .all(accountId),
+        analyses: accountRecords(store, {
+          kind: "kwAnalyses",
+          accountId,
+          user,
+          limit: 500,
+        }).map((r) => ({ id: r.id, title: r.title, createdAt: r.stamp })),
       });
     if (p === "/sales/preparation/draft" && method === "POST") {
       const previous = store.get("meetingPrepDrafts", accountId);
@@ -37,7 +40,7 @@ export function createMeetingPrepService({ store, createLinkedTask }) {
       const draft = {
         id: accountId,
         accountId,
-        agenda: short(body.agenda),
+        ...prepareDraft(store, body, previous),
         version: (previous?.version || 0) + 1,
         updatedAt: now(),
         updatedBy: user.id,
