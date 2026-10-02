@@ -95,6 +95,11 @@ export async function runCustomerProposalChecks(page) {
   await expect(
     editor.getByRole("button", { name: "PowerPointをダウンロード" }),
   ).toBeEnabled();
+  // The preceding placement check reloads the document. Stub the dialog here
+  // as well, so headless Chrome cannot fire afterprint before we inspect/PDF it.
+  await page.evaluate(() => {
+    window.print = () => {};
+  });
   await editor
     .getByRole("button", { name: "提案資料をPDF保存", exact: true })
     .click();
