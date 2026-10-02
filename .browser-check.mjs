@@ -14,6 +14,7 @@ import { runGoogleWorkflowBrowserChecks } from "./tests/google-workflows-browser
 import { runMeetingPrepBrowserChecks } from "./tests/meeting-prep-browser.mjs";
 import { runMinuteUxBrowserChecks } from "./tests/minute-ux-browser.mjs";
 import { runPlacementBrowserChecks } from "./tests/placement-browser.mjs";
+import { runCustomerProposalChecks } from "./tests/customer-proposals-browser.mjs";
 import { runSalesImprovementChecks } from "./tests/sales-improvements-browser.mjs";
 import { runCustomerHubChecks } from "./tests/customer-hub-browser.mjs";
 
@@ -256,6 +257,7 @@ try {
     await runMinuteUxBrowserChecks(page);
     await runMeetingPrepBrowserChecks(page);
     await runPlacementBrowserChecks(page);
+    await runCustomerProposalChecks(page);
     await runSalesImprovementChecks(page, cloud);
     await runCustomerHubChecks(page);
   }

@@ -4,6 +4,7 @@ COPY package*.json ./
 RUN npm ci
 COPY index.html vite.config.ts tsconfig.json ./
 COPY src ./src
+COPY shared ./shared
 COPY public ./public
 RUN npm run check && npm run build
 
@@ -12,6 +13,7 @@ WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 DATA_DIR=/app/data
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY shared ./shared
 COPY scripts/reset-password.mjs ./scripts/reset-password.mjs
 COPY scripts/backup.mjs ./scripts/backup.mjs
 COPY scripts/restore.mjs ./scripts/restore.mjs

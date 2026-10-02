@@ -4,6 +4,7 @@ import { createMinuteService } from "./minutes.mjs";
 import { createDashboardService } from "./sales-dashboard.mjs";
 import { createDirectoryService } from "./account-directory.mjs";
 import { createMeetingPrepService } from "./meeting-prep.mjs";
+import { createCustomerProposals } from "./customer-proposals.mjs";
 import {
   importQuality,
   ownerMatches,
@@ -105,6 +106,7 @@ export function createSalesService({
   });
   const improvements = createSalesImprovements({ store, createLinkedTask });
   const customerHub = createCustomerHub({ store });
+  const customerProposals = createCustomerProposals({ store });
   const preparationTemplates = createPreparationTemplates({ store });
   const account = (aid) => {
     const a = store.get("salesAccounts", aid);
@@ -545,6 +547,7 @@ export function createSalesService({
       check(user.role === "admin", "管理者のみ操作できます。", 403);
     if (await improvements({ p, method, body, user, reply, url })) return true;
     if (await customerHub({ p, method, body, user, reply, url })) return true;
+    if (await customerProposals({ p, method, body, user, reply, url })) return true;
     if (await preparationTemplates({ p, method, body, user, reply, url }))
       return true;
     if (await meetingPrepService({ p, method, body, user, reply, url }))

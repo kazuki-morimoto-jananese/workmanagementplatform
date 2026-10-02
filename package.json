@@ -1,6 +1,6 @@
 {
   "name": "worknest",
-  "version": "2.18.0",
+  "version": "2.19.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -27,12 +27,17 @@
     "connect:cloud": "node scripts/connect-cloud.mjs"
   },
   "overrides": {
+    "pptxgenjs": {
+      "image-size": "2.0.4"
+    },
     "miniflare": {
+      "undici": "7.29.1",
       "sharp": "0.35.4"
     }
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
+    "pptxgenjs": "4.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "read-excel-file": "^9.3.10"

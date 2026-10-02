@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+const CustomerProposal = lazy(() => import("./CustomerProposal"));
 import { AccountSearch } from "./AccountSearch";
 import { PreparationTemplates } from "./PreparationTemplates";
 import type {
@@ -908,6 +909,8 @@ function Report({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   const [projectId, setProjectId] = useState(account.projectId || "");
+  const [proposalOpen, setProposalOpen] = useState(false);
+  const [proposalLoaded, setProposalLoaded] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   function print() {
     document.getElementById("worknest-printout")?.remove();
@@ -930,6 +933,20 @@ function Report({
         {r.placement ? "配信面" : "KW"} · 担当者確認用ドラフト
       </p>
       <div className="prep-no-print">
+        <button
+          className="button primary"
+          disabled={!savedId}
+          onClick={() => {
+            setProposalLoaded(true);
+            setProposalOpen((v) => !v);
+          }}
+          aria-expanded={proposalOpen}
+        >
+          {proposalOpen ? "提案資料の編集を閉じる" : "顧客向け提案資料を作成"}
+        </button>
+        {!savedId && (
+          <p>提案資料の作成は「分析・提案を共有保存」の後に利用できます。</p>
+        )}
         <button className="button" onClick={print}>
           印刷・PDF保存
         </button>
@@ -945,6 +962,21 @@ function Report({
           分析結果をJSON保存
         </button>
       </div>
+      {proposalLoaded && savedId && (
+        <div hidden={!proposalOpen} className="prep-no-print">
+          <Suspense fallback={<p>提案資料の編集画面を読み込み中…</p>}>
+            <CustomerProposal
+              key={savedId}
+              api={api}
+              report={r}
+              accountId={account.id}
+              accountName={account.name}
+              analysisId={savedId}
+              presenter={data.user.name}
+            />
+          </Suspense>
+        </div>
+      )}
       <div className="prep-table">
         <table>
           <thead>

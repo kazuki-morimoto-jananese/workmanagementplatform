@@ -1,0 +1,230 @@
+.customer-proposal {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid #bacdc5;
+  border-top: 5px solid #315b49;
+  border-radius: 16px;
+  background: #f7faf8;
+  color: #213c42;
+}
+.proposal-editor-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.proposal-editor-heading h3 {
+  margin: 8px 0;
+}
+.proposal-eyebrow {
+  color: #315b49;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+}
+.proposal-fields {
+  border: 0;
+  padding: 0;
+  margin: 24px 0;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.proposal-fields legend {
+  font-weight: 750;
+  margin-bottom: 16px;
+}
+.customer-proposal .proposal-check {
+  display: flex;
+  flex-direction: row;
+  align-items: start;
+  gap: 10px;
+  line-height: 1.7;
+  font-size: 14px;
+  color: #213c42;
+}
+.proposal-check input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+}
+.proposal-finding {
+  padding: 16px;
+  background: white;
+  border: 1px solid #d4e0db;
+  border-radius: 10px;
+}
+.proposal-finding p {
+  font-size: 13px;
+}
+.proposal-choices {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+}
+.proposal-choices .proposal-check {
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.proposal-actions span {
+  font-size: 12px;
+  color: #526770;
+}
+.proposal-preview {
+  display: grid;
+  gap: 18px;
+  max-height: 720px;
+  overflow: auto;
+  padding: 8px;
+  background: #e5ece8;
+  border-radius: 10px;
+}
+.proposal-slide {
+  position: relative;
+  container-type: inline-size;
+  aspect-ratio: 16/9;
+  padding: 4% 5%;
+  background: white;
+  border-left: 5px solid #315b49;
+  color: #213c42;
+  box-sizing: border-box;
+  font-family: "Yu Gothic", sans-serif;
+}
+.proposal-slide h4 {
+  margin: 0 0 3.5%;
+  color: inherit;
+  font-size: 2.3cqw;
+  line-height: 1.3;
+}
+.proposal-lines {
+  font-size: 1.9cqw;
+  line-height: 1.48;
+  white-space: pre;
+}
+.proposal-slide.proposal-cover {
+  background: #315b49;
+  color: white;
+}
+.proposal-cover .proposal-lines {
+  font-size: 2cqw;
+}
+.proposal-slide table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 1.3cqw;
+}
+.proposal-slide th,
+.proposal-slide td {
+  padding: 0.8% 1%;
+  border: 1px solid #d4e0db;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #213c42;
+}
+.proposal-slide th {
+  background: #315b49;
+  color: white;
+}
+.proposal-slide tr:nth-child(odd) td {
+  background: #eff5f2;
+}
+.proposal-slide .proposal-caption {
+  font-size: 1.2cqw;
+  color: #526770;
+  margin-top: 3%;
+}
+.proposal-slide footer {
+  position: absolute;
+  right: 5%;
+  bottom: 4%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 1cqw;
+  color: inherit;
+}
+.proposal-bars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5%;
+}
+.proposal-bars h5 {
+  margin: 0 0 12%;
+  font-size: 2cqw;
+}
+.proposal-bar-item {
+  margin: 12% 0 18%;
+  font-size: 1.4cqw;
+}
+.proposal-bar-track {
+  height: 2.5cqw;
+  background: #eff5f2;
+  margin-top: 8%;
+}
+.proposal-bar-track i {
+  display: block;
+  height: 100%;
+  background: #4d7293;
+}
+.proposal-bar-track i.current {
+  background: #315b49;
+}
+@media (max-width: 600px) {
+  .customer-proposal {
+    padding: 14px;
+  }
+  .proposal-editor-heading {
+    flex-direction: column;
+  }
+  .proposal-preview {
+    padding: 3px;
+    gap: 10px;
+  }
+}
+@page proposal {
+  size: A4 landscape;
+  margin: 0;
+}
+@media print {
+  #worknest-printout.proposal-printout {
+    display: block;
+    padding: 0;
+    background: white;
+    max-height: none;
+    overflow: visible;
+    border-radius: 0;
+  }
+  #worknest-printout.proposal-printout .proposal-slide {
+    page: proposal;
+    width: 297mm;
+    height: 210mm;
+    aspect-ratio: auto;
+    break-after: page;
+    break-inside: avoid;
+    padding: 16mm 18mm;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #worknest-printout.proposal-printout .proposal-slide:last-child {
+    break-after: auto;
+  }
+  #worknest-printout.proposal-printout .proposal-slide h4 {
+    font-size: 24pt;
+  }
+  #worknest-printout.proposal-printout .proposal-lines {
+    font-size: 17pt;
+    line-height: 1.65;
+  }
+  #worknest-printout.proposal-printout .proposal-caption {
+    font-size: 11pt;
+  }
+}
