@@ -13,6 +13,10 @@ export type SalesMedia = {
   acceptableCpa: number | null;
 };
 export type SalesAccount = {
+  assignmentManaged?: boolean;
+  assignmentAsOf?: string;
+  assignmentUnknown?: boolean;
+  assignmentId?: string;
   orgUnitId?: string;
   isDemo?: boolean;
   id: string;

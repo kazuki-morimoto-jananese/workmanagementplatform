@@ -130,6 +130,11 @@ export async function readGoogleSheet(
     { headers: { Authorization: `Bearer ${token}` } },
     fetchImpl,
   );
+  if (
+    config.allowEmpty &&
+    (!result.values || (Array.isArray(result.values) && !result.values.length))
+  )
+    return { values: [] };
   if (!Array.isArray(result.values) || !result.values.length)
     throw problem("取得範囲が空です。見出し行を含む範囲を指定してください。");
   if (result.values.length < 2 && !config.allowHeaderOnly)

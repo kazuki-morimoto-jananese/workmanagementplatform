@@ -17,6 +17,7 @@ import { runPlacementBrowserChecks } from "./tests/placement-browser.mjs";
 import { runCustomerProposalChecks } from "./tests/customer-proposals-browser.mjs";
 import { runSalesImprovementChecks } from "./tests/sales-improvements-browser.mjs";
 import { runCustomerHubChecks } from "./tests/customer-hub-browser.mjs";
+import { runAccountAssignmentChecks } from "./tests/account-assignments-browser.mjs";
 
 const directory = mkdtempSync(join(tmpdir(), "worknest-browser-"));
 const cloud = process.argv.includes("--cloud");
@@ -260,6 +261,7 @@ try {
     await runCustomerProposalChecks(page);
     await runSalesImprovementChecks(page, cloud);
     await runCustomerHubChecks(page);
+    await runAccountAssignmentChecks(page);
   }
   await page.getByRole("button", { name: "ホーム", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });

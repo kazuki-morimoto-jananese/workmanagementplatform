@@ -37,6 +37,9 @@ export function ImportQuality({
     <section className="improvement-quality" aria-label="取り込み品質チェック">
       <h4>取り込み前の照合 · {q.month}</h4>
       <p>
+        「担当・引き継ぎ」で履歴を登録したアカウントは、この取込では担当者・グループを変更しません。
+      </p>
+      <p>
         新規 {q.created}件 / 変更あり {q.changed}件 / 比較項目の変更なし{" "}
         {q.unchanged}件
       </p>

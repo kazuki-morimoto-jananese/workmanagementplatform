@@ -21,6 +21,11 @@ const SalesImprovements = lazy(() =>
 const CustomerHub = lazy(() =>
   import("./CustomerHub").then((m) => ({ default: m.CustomerHub })),
 );
+const AccountAssignments = lazy(() =>
+  import("./AccountAssignments").then((m) => ({
+    default: m.AccountAssignments,
+  })),
+);
 import {
   ArrowRight,
   BarChart3,
@@ -936,6 +941,9 @@ export default function SalesWorkspace({
           },
           { id: "crm", label: "顧客・リード", icon: BriefcaseBusiness },
           { id: "connections", label: "データ連携", icon: FolderSync },
+          ...(admin
+            ? [{ id: "assignments", label: "担当・引き継ぎ", icon: Users }]
+            : []),
         ].map((t) => (
           <button
             key={t.id}
@@ -951,6 +959,19 @@ export default function SalesWorkspace({
           </button>
         ))}
       </nav>
+      {tab === "assignments" && admin && (
+        <Suspense fallback={<p role="status">画面を読み込み中…</p>}>
+          <AccountAssignments
+            api={api}
+            data={data}
+            accounts={sales.accounts}
+            onRefresh={async () => {
+              await load();
+              await onTasksChanged();
+            }}
+          />
+        </Suspense>
+      )}
       {tab === "crm" && (
         <CrmWorkspace
           key={(crmContext?.accountId || "") + (crmContext?.contactId || "")}
@@ -2478,42 +2499,55 @@ export default function SalesWorkspace({
                 />
               </label>
             </div>
-            <label>
-              社内担当者
-              <select
-                name="ownerId"
-                aria-label="社内担当者"
-                defaultValue={selectedAccount?.ownerId || ""}
-              >
-                <option value="">未割り当て</option>
-                {data.members
-                  .filter((m) => m.active)
-                  .map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              取込元の担当者名
-              <input
-                name="ownerName"
-                defaultValue={selectedAccount?.ownerName}
-              />
-            </label>
-            <label>
-              担当組織
-              <OrganizationSelect
-                units={data.orgUnits || []}
-                name="orgUnitId"
-                defaultValue={selectedAccount?.orgUnitId || ""}
-              />
-              <small>
-                取込元のグループ：{selectedAccount?.group || "未設定"}
-                。組織は「メンバー」で登録できます。
-              </small>
-            </label>
+            {selectedAccount?.assignmentManaged && (
+              <p>
+                担当は{selectedAccount.assignmentAsOf}
+                時点の履歴です。変更は管理者が「担当・引き継ぎ」で行ってください。
+                {selectedAccount.assignmentUnknown &&
+                  "この期間の担当履歴は未登録です。"}
+              </p>
+            )}
+            <fieldset
+              className="assignment-ownership"
+              disabled={selectedAccount?.assignmentManaged}
+            >
+              <label>
+                社内担当者
+                <select
+                  name="ownerId"
+                  aria-label="社内担当者"
+                  defaultValue={selectedAccount?.ownerId || ""}
+                >
+                  <option value="">未割り当て</option>
+                  {data.members
+                    .filter((m) => m.active)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                取込元の担当者名
+                <input
+                  name="ownerName"
+                  defaultValue={selectedAccount?.ownerName}
+                />
+              </label>
+              <label>
+                担当組織
+                <OrganizationSelect
+                  units={data.orgUnits || []}
+                  name="orgUnitId"
+                  defaultValue={selectedAccount?.orgUnitId || ""}
+                />
+                <small>
+                  取込元のグループ：{selectedAccount?.group || "未設定"}
+                  。組織は「メンバー」で登録できます。
+                </small>
+              </label>
+            </fieldset>
             <label>
               代理店・取引先
               <input name="agency" defaultValue={selectedAccount?.agency} />

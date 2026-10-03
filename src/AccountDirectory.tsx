@@ -162,6 +162,7 @@ export function AccountDirectory({
       </div>
       <p>
         初期表示は自分の担当です。他の担当者・全件にも切り替えられます。金額は円単位で、選択月のスプシ実績です。空欄は「—」、0円は「0」で表示します。
+        担当変更を登録したアカウントは、当月は本日時点、過去・未来の月は月末時点の担当で表示します。
       </p>
       <div className="directory-filters">
         <label>

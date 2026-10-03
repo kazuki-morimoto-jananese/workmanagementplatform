@@ -1,5 +1,9 @@
 import { digest, now } from "./store.mjs";
 import { IMPORT_FIELDS, normalizeHeader } from "./sales-import.mjs";
+import {
+  assignedAccounts,
+  assignmentDateForMonth,
+} from "./account-assignment-records.mjs";
 
 export const mappingId = (headers) => digest(JSON.stringify(headers));
 export const ownerMatches = (users, name) =>
@@ -25,7 +29,13 @@ const summary = (values) => ({
   zero: values.filter((v) => v === 0).length,
 });
 export function importQuality(store, preview, month) {
-  const accounts = new Map(store.all("salesAccounts").map((a) => [a.id, a]));
+  const accounts = new Map(
+    assignedAccounts(
+      store,
+      store.all("salesAccounts"),
+      assignmentDateForMonth(month),
+    ).map((a) => [a.id, a]),
+  );
   const masters = new Map(
     store
       .all("salesMasters")
@@ -64,11 +74,17 @@ export function importQuality(store, preview, month) {
       "category",
       "agency",
     ])
-      if (Object.hasOwn(r, k) && (a?.[k] ?? "") !== r[k]) fields.push(k);
+      if (
+        !(a?.assignmentManaged && ["ownerName", "group"].includes(k)) &&
+        Object.hasOwn(r, k) &&
+        (a?.[k] ?? "") !== r[k]
+      )
+        fields.push(k);
     for (const k of metrics)
       if (Object.hasOwn(r, k) && fromMaster(m, k) !== r[k]) fields.push(k);
     // Every mapped field is considered; a change in a media metric or reason counts too.
     for (const k of Object.keys(preview.mapping)) {
+      if (a?.assignmentManaged && ["ownerName", "group"].includes(k)) continue;
       if (fields.includes(k) || ["accountId", "name"].includes(k)) continue;
       const old = k.includes(".")
         ? m?.media?.[k.split(".")[0]]?.[k.split(".")[1]]
@@ -101,10 +117,14 @@ export function importQuality(store, preview, month) {
       });
     const status = r.status ?? a?.status ?? "";
     if (/停止|休止|解約|配信終了/.test(status)) stopped++;
-    const owner = r.ownerName ?? a?.ownerName;
+    const owner = a?.assignmentManaged
+      ? a.ownerName
+      : (r.ownerName ?? a?.ownerName);
     const retained =
       a?.ownerId &&
-      (!Object.hasOwn(r, "ownerName") || r.ownerName === a.ownerName) &&
+      (a.assignmentManaged ||
+        !Object.hasOwn(r, "ownerName") ||
+        r.ownerName === a.ownerName) &&
       users.some((u) => u.id === a.ownerId && u.active);
     if (!retained && ownerMatches(users, owner).length !== 1) {
       unlinked++;

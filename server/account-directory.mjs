@@ -76,6 +76,10 @@ export function directoryPreview(labels, numbers) {
   check(rows.length, "アカウントのデータ行がありません。");
   return { rows, errors, count: rows.length };
 }
+import {
+  assignedAccounts,
+  assignmentDateForMonth,
+} from "./account-assignment-records.mjs";
 export function createDirectoryService({ store, sheetReader }) {
   let running = false;
   const source = () => store.get("salesDirectorySettings", "source");
@@ -258,9 +262,13 @@ export function createDirectoryService({ store, sheetReader }) {
       if (p === "/sales/directory" && method === "GET") {
         const month = url.searchParams.get("month");
         monthOK(month);
-        const all = store
-          .all("salesDirectoryAccounts")
-          .filter((r) => r.month === month && r.present);
+        const all = assignedAccounts(
+          store,
+          store
+            .all("salesDirectoryAccounts")
+            .filter((r) => r.month === month && r.present),
+          assignmentDateForMonth(month),
+        );
         const owner = url.searchParams.get("owner") || "me",
           q = person(url.searchParams.get("search") || "");
         const filtered = all.filter(

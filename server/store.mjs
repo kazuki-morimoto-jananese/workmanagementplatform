@@ -12,6 +12,7 @@ import { promisify } from "node:util";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { customerIndexSql } from "./customer-records.mjs";
 import { proposalIndexSql } from "./customer-proposals.mjs";
+import { assignmentIndexSql } from "./account-assignment-records.mjs";
 export const auditContext = new AsyncLocalStorage();
 // Cache only within a request/job; never share a user's response across requests.
 export const readContext = new AsyncLocalStorage();
@@ -73,12 +74,16 @@ export function openStoreDatabase(db) {
     CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY);`);
   db.exec(customerIndexSql);
   db.exec(proposalIndexSql);
+  db.exec(assignmentIndexSql);
   const tracked = new Set([
     "crmContacts",
     "integrationBatches",
     "tasks",
     "projects",
     "salesAccounts",
+    "accountAssignments",
+    "accountAssignmentSettings",
+    "accountAssignmentRuns",
     "salesMasters",
     "salesReviews",
     "salesPersonalTargets",

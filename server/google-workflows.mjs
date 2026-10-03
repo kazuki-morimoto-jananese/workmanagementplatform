@@ -3,6 +3,10 @@ import { jsonRequest } from "./sales-integrations.mjs";
 import { dashboardGroups } from "./sales-dashboard.mjs";
 import { withImportedForecast } from "./sales-targets.mjs";
 import { createDriveCollection } from "./drive-collection.mjs";
+import {
+  assignedAccounts,
+  assignmentDateForMonth,
+} from "./account-assignment-records.mjs";
 
 export const workflowScopes = {
   driveSearch: "https://www.googleapis.com/auth/drive.metadata.readonly",
@@ -129,9 +133,14 @@ export function buildSalesPresentation(store, input) {
     .all("salesMasters")
     .filter((a) => a.month === month)
     .map(withImportedForecast);
-  const accounts = store.all("salesAccounts").filter((a) => {
+  const accounts = assignedAccounts(
+    store,
+    store.all("salesAccounts"),
+    assignmentDateForMonth(month),
+  ).filter((a) => {
     if (a.isDemo) return false;
     const current =
+      (a.assignmentManaged ? a : null) ||
       directory.find((r) => r.accountId === a.id) ||
       masters.find((r) => r.accountId === a.id) ||
       a;

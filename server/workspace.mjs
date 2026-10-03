@@ -194,6 +194,8 @@ export function createWorkspaceService({
                 "integrationBatches",
                 "integrations",
                 "integrationTokens",
+                "accountAssignmentSettings",
+                "accountAssignmentRuns",
               ].includes(kind),
             "全社監査ログは管理者のみ閲覧できます。",
             403,

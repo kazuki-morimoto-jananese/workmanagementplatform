@@ -5,6 +5,12 @@ import { createDashboardService } from "./sales-dashboard.mjs";
 import { createDirectoryService } from "./account-directory.mjs";
 import { createMeetingPrepService } from "./meeting-prep.mjs";
 import { createCustomerProposals } from "./customer-proposals.mjs";
+import { createAccountAssignments } from "./account-assignments.mjs";
+import {
+  assignedAccounts,
+  assignmentDateForMonth,
+  managedAccountIds,
+} from "./account-assignment-records.mjs";
 import {
   importQuality,
   ownerMatches,
@@ -100,6 +106,11 @@ export function createSalesService({
   const queue = [];
   const dashboardService = createDashboardService({ store, sheetReader });
   const directoryService = createDirectoryService({ store, sheetReader });
+  const assignments = createAccountAssignments({
+    store,
+    sheetReader,
+    saveTask,
+  });
   const meetingPrepService = createMeetingPrepService({
     store,
     createLinkedTask,
@@ -142,6 +153,11 @@ export function createSalesService({
   const saveAccount = (body, user, old = null) => {
     version(old, body);
     const input = { ...(old || {}), ...body };
+    const assignmentManaged = old && managedAccountIds(store).has(old.id);
+    if (assignmentManaged) {
+      for (const key of ["ownerId", "ownerName", "group", "orgUnitId"])
+        input[key] = old[key];
+    }
     const aid = old?.id || text(input.id, 200) || id();
     check(
       !old ? !store.get("salesAccounts", aid) : true,
@@ -149,7 +165,7 @@ export function createSalesService({
       409,
     );
     check(text(input.name, 200), "アカウント名が必要です。");
-    member(input.ownerId);
+    if (!assignmentManaged) member(input.ownerId);
     project(input.projectId);
     const item = {
       id: aid,
@@ -237,6 +253,7 @@ export function createSalesService({
       updated = 0;
     const sourceName = text(input.sourceName, 150) || "CSV/TSV";
     const users = store.users();
+    const managed = managedAccountIds(store);
     store.transaction(() => {
       for (const row of preview.rows) {
         const old = store.get("salesAccounts", row.accountId);
@@ -257,6 +274,7 @@ export function createSalesService({
           version: 0,
         };
         if (
+          !managed.has(row.accountId) &&
           row.ownerName !== undefined &&
           (!old ||
             row.ownerName !== old.ownerName ||
@@ -282,7 +300,11 @@ export function createSalesService({
           "customerGoal",
           "customerIssues",
         ])
-          if (row[k] !== undefined) base[k] = row[k];
+          if (
+            row[k] !== undefined &&
+            !(managed.has(row.accountId) && ["ownerName", "group"].includes(k))
+          )
+            base[k] = row[k];
         const a = { ...base, importedAt: now(), version: base.version + 1 };
         store.put("salesAccounts", a);
         if (old) updated++;
@@ -545,9 +567,11 @@ export function createSalesService({
     };
     const admin = () =>
       check(user.role === "admin", "管理者のみ操作できます。", 403);
+    if (await assignments({ p, method, body, user, reply, url })) return true;
     if (await improvements({ p, method, body, user, reply, url })) return true;
     if (await customerHub({ p, method, body, user, reply, url })) return true;
-    if (await customerProposals({ p, method, body, user, reply, url })) return true;
+    if (await customerProposals({ p, method, body, user, reply, url }))
+      return true;
     if (await preparationTemplates({ p, method, body, user, reply, url }))
       return true;
     if (await meetingPrepService({ p, method, body, user, reply, url }))
@@ -564,9 +588,16 @@ export function createSalesService({
       );
       const source = store.get("salesSettings", "source");
       return reply(200, {
-        accounts: store.all("salesAccounts").map((a) => ({
+        accounts: assignedAccounts(
+          store,
+          store.all("salesAccounts"),
+          assignmentDateForMonth(month),
+        ).map((a) => ({
           ...a,
-          group: a.orgUnitId ? orgPath(store, a.orgUnitId) : a.group,
+          group:
+            a.orgUnitId && !a.assignmentManaged
+              ? orgPath(store, a.orgUnitId)
+              : a.group,
         })),
         demoPeriods: demoPeriods(jstToday()),
         masters: store
@@ -1119,8 +1150,11 @@ export function createSalesService({
         ["real", "demo"].includes(scope),
         "データの種別を指定してください。",
       );
-      const records = store
-        .all("salesAccounts")
+      const records = assignedAccounts(
+        store,
+        store.all("salesAccounts"),
+        assignmentDateForMonth(month),
+      )
         .filter((a) => (scope === "demo" ? a.isDemo : !a.isDemo))
         .map((a) => {
           const r = all
